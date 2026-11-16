@@ -6,3 +6,5 @@
 /Model-Deployment/instance_counter.json
 *.pyc
 bugs.txt
+Model-Training/Outputs/backups/**/*.pt
+Model-Training/Dataset/finetune_workspace/

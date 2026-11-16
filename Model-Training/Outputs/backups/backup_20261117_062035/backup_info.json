@@ -1,0 +1,7 @@
+{
+  "timestamp": "20261117_062035",
+  "source_model": "C:\\Users\\Woradech\\Documents\\Construction-Site-Safety-PPE-Detection-main\\Model-Training/Outputs/runs/detect/yolov8s_ppe_css_200_epochs/weights/best.pt",
+  "backup_path": "C:\\Users\\Woradech\\Documents\\Construction-Site-Safety-PPE-Detection-main\\Model-Training/Outputs/backups\\backup_20261117_062035\\best.pt",
+  "size_mb": 21.5,
+  "note": "Pre-fine-tuning automatic safety backup"
+}
