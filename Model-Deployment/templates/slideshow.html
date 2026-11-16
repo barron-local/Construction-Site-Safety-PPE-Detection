@@ -1234,7 +1234,12 @@
                 }
 
                 // Draw Label Pill
-                const labelText = item.is_inferred ? `${item.class} (Missing)` : `${item.class} ${item.confidence}%`;
+                let labelText = `${item.class} ${item.confidence}%`;
+                if (item.is_inferred) {
+                    labelText = `${item.class} (Missing)`;
+                } else if (item.note && (item.note.includes('หมวกแก๊ป') || item.note.includes('Cap'))) {
+                    labelText = `NO-Hardhat (Cap) ${item.confidence}%`;
+                }
                 const fontSize = Math.max(12, Math.round(bboxCanvas.width / 44));
                 ctx.font = `bold ${fontSize}px "Segoe UI", Roboto, sans-serif`;
                 const textMetrics = ctx.measureText(labelText);
@@ -1353,13 +1358,20 @@
                 div.onmouseleave = () => unhighlightBox();
                 div.onclick = (e) => toggleItemVisibility(item.id, e);
 
+                let badgeDetail = '';
+                if (item.is_inferred) {
+                    badgeDetail = '<span style="color:#ef4444;font-size:10px;font-weight:600;">(Missing)</span>';
+                } else if (item.note && (item.note.includes('หมวกแก๊ป') || item.note.includes('Cap'))) {
+                    badgeDetail = '<span style="color:#ef4444;font-size:10px;font-weight:600;">(หมวกแก๊ป / Cap)</span>';
+                }
+
                 div.innerHTML = `
                     <div class="detection-name">
                         <button class="eye-btn" onclick="toggleItemVisibility(${item.id}, event)" title="${item.visible === false ? 'คลิกเพื่อแสดงกรอบ' : 'คลิกเพื่อซ่อนกรอบ'}">
                             <i class="fas ${item.visible !== false ? 'fa-eye' : 'fa-eye-slash'}"></i>
                         </button>
                         <i class="${icon}"></i>
-                        <span class="det-label">${item.class} ${item.is_inferred ? '<span style="color:#ef4444;font-size:10px;font-weight:600;">(Missing)</span>' : ''}</span>
+                        <span class="det-label">${item.class} ${badgeDetail}</span>
                     </div>
                     <div class="detection-conf">${item.confidence}%</div>
                 `;

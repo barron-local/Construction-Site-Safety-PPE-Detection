@@ -270,7 +270,7 @@ def generate_frames(clean=False):
                     if class_name == 'Hardhat':
                         is_cap, cap_conf = verify_cap_on_crop(frame, [x1, y1, x2, y2])
                         if is_cap:
-                            class_name = 'Cap'
+                            class_name = 'NO-Hardhat'
                             conf = cap_conf
                     
                     all_detections.append({
@@ -670,10 +670,10 @@ def api_slideshow_detect(dataset_type, filename):
                 is_cap, cap_conf = verify_cap_on_crop(img, bbox)
                 cap_check_score = round(cap_conf * 100, 1)
                 if is_cap:
-                    name = 'Cap'
+                    name = 'NO-Hardhat'
                     conf = cap_conf
                     cv2.rectangle(plotted_img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 240), 2)
-                    cv2.putText(plotted_img, f"Cap {int(conf*100)}%", (int(bbox[0]), max(20, int(bbox[1]-6))), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 240), 2)
+                    cv2.putText(plotted_img, f"NO-Hardhat {int(conf*100)}%", (int(bbox[0]), max(20, int(bbox[1]-6))), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 240), 2)
             is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
             det_item = {
                 'id': idx,
@@ -684,6 +684,8 @@ def api_slideshow_detect(dataset_type, filename):
             }
             if cap_checked:
                 det_item['cap_score'] = cap_check_score
+                if is_cap:
+                    det_item['note'] = 'หมวกแก๊ป (Cap Detected)'
             detections.append(det_item)
             if is_neg:
                 violations.append(name)
@@ -768,10 +770,10 @@ def api_slideshow_upload():
                 is_cap, cap_conf = verify_cap_on_crop(img, bbox)
                 cap_check_score = round(cap_conf * 100, 1)
                 if is_cap:
-                    name = 'Cap'
+                    name = 'NO-Hardhat'
                     conf = cap_conf
                     cv2.rectangle(plotted_img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 240), 2)
-                    cv2.putText(plotted_img, f"Cap {int(conf*100)}%", (int(bbox[0]), max(20, int(bbox[1]-6))), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 240), 2)
+                    cv2.putText(plotted_img, f"NO-Hardhat {int(conf*100)}%", (int(bbox[0]), max(20, int(bbox[1]-6))), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 240), 2)
             is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
             det_item = {
                 'id': idx,
@@ -782,6 +784,8 @@ def api_slideshow_upload():
             }
             if cap_checked:
                 det_item['cap_score'] = cap_check_score
+                if is_cap:
+                    det_item['note'] = 'หมวกแก๊ป (Cap Detected)'
             detections.append(det_item)
             if is_neg:
                 violations.append(name)
