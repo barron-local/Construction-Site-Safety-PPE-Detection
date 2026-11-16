@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPE Detection - Live Model Showcase</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #f0f3f8;
+            --bg-secondary: #ffffff;
+            --text-primary: #1a202c;
+            --text-secondary: #718096;
+            --accent-blue: #3182ce;
+            --accent-green: #38a169;
+            --accent-red: #e53e3e;
+            --accent-orange: #dd6b20;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        body {
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .brand-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-title i {
+            color: var(--accent-blue);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+            padding-bottom: 2px;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent-blue);
+        }
+
+        .nav-links a.active {
+            color: var(--accent-blue);
+            border-bottom: 2px solid var(--accent-blue);
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 24px auto;
+            padding: 0 24px;
+        }
+
+        /* Top Progress Bar for Slide Timer */
+        .timer-progress-wrap {
+            width: 100%;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .timer-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #3182ce, #63b3ed);
+            transition: width 0.1s linear;
+        }
+
+        /* Main Showcase Layout */
+        .showcase-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .showcase-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Image Display Card */
+        .image-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .image-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .image-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-badge.safe {
+            background: #def7ec;
+            color: #03543f;
+            border: 1px solid #84e1bc;
+        }
+
+        .status-badge.violation {
+            background: #fde8e8;
+            color: #9b1c1c;
+            border: 1px solid #f8b4b4;
+            animation: pulse-border 1.5s infinite;
+        }
+
+        .status-badge.scene {
+            background: #e1effe;
+            color: #1e429f;
+            border: 1px solid #a4cafe;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .viewport-box {
+            position: relative;
+            background: #0f172a;
+            border-radius: 12px;
+            min-height: 520px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+            cursor: pointer;
+        }
+
+        .viewport-box img {
+            max-width: 100%;
+            max-height: 600px;
+            object-fit: contain;
+            display: block;
+            border-radius: 8px;
+            transition: opacity 0.25s ease-in-out;
+        }
+
+        .viewport-loading {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.75);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            gap: 12px;
+            font-size: 14px;
+            backdrop-filter: blur(2px);
+            z-index: 10;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top: 3px solid #3182ce;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Drag & drop overlay */
+        .drop-hint {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(49, 130, 206, 0.9);
+            color: white;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            border: 3px dashed white;
+            border-radius: 12px;
+            z-index: 25;
+            backdrop-filter: blur(2px);
+        }
+
+        /* Controls Toolbar */
+        .controls-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .btn-group {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: #e2e8f0;
+            border-color: #cbd5e1;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+
+        .btn-primary:hover {
+            background: #2b6cb0;
+            border-color: #2b6cb0;
+        }
+
+        .btn-upload {
+            background: #2b6cb0;
+            color: white;
+            border-color: #2b6cb0;
+            font-weight: 600;
+        }
+
+        .btn-upload:hover {
+            background: #1a4971;
+            border-color: #1a4971;
+        }
+
+        .btn-resume {
+            background: #38a169;
+            color: white;
+            border-color: #38a169;
+        }
+
+        .btn-resume:hover {
+            background: #2f855a;
+        }
+
+        .btn.active {
+            background: #ebf8ff;
+            color: var(--accent-blue);
+            border-color: #90cdf4;
+        }
+
+        .select-input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 13px;
+            background: white;
+            color: var(--text-primary);
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .slide-counter {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        /* Right Panel: Analytics & Breakdown */
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .panel-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title i {
+            color: var(--accent-blue);
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .metric-box {
+            background: var(--bg-primary);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        /* Detection Items List */
+        .detection-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 380px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .detection-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: var(--bg-primary);
+            border-left: 4px solid #cbd5e1;
+            font-size: 13px;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .detection-item:hover {
+            transform: translateX(3px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
+        .detection-item.item-hidden {
+            opacity: 0.45;
+            background: #f8fafc !important;
+            border-left-color: #cbd5e1 !important;
+        }
+
+        .detection-item.item-hidden .det-label {
+            text-decoration: line-through;
+            color: #94a3b8;
+        }
+
+        .eye-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 3px 6px;
+            margin-right: 4px;
+            font-size: 14px;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .eye-btn:hover {
+            color: #2563eb;
+            background: rgba(37, 99, 235, 0.1);
+        }
+
+        .detection-item.item-hidden .eye-btn {
+            color: #ef4444;
+        }
+
+        .btn-toggle-all {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-toggle-all:hover {
+            background: #e2e8f0;
+            color: var(--text-primary);
+        }
+
+        .detection-item.safe {
+            border-left-color: var(--accent-green);
+            background: #f0fdf4;
+        }
+
+        .detection-item.violation {
+            border-left-color: var(--accent-red);
+            background: #fef2f2;
+        }
+
+        .detection-item.person {
+            border-left-color: var(--accent-blue);
+            background: #eff6ff;
+        }
+
+        .detection-item.object {
+            border-left-color: var(--accent-orange);
+            background: #fffaf0;
+        }
+
+        .detection-name {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .detection-conf {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: white;
+            border: 1px solid #e2e8f0;
+        }
+
+        .model-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #e2e8f0;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .upload-tip-box {
+            margin-top: 14px;
+            padding: 12px;
+            background: #ebf8ff;
+            border: 1px dashed #bee3f8;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #2b6cb0;
+            line-height: 1.5;
+        }
+
+        .upload-tip-box strong {
+            color: #2c5282;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <div class="brand-title">
+                <i class="fas fa-shield-alt"></i> PPE Detection System
+            </div>
+            <div class="nav-links">
+                <a href="/">Live Detection</a>
+                <a href="/kiosk">Kiosk Mode</a>
+                <a href="/slideshow" class="active"><i class="fas fa-images"></i> Model Showcase</a>
+                <a href="/review">Review Instances</a>
+                <a href="/settings">Settings</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Top auto-slide timer bar -->
+        <div class="timer-progress-wrap" title="Slide Timer Progress">
+            <div class="timer-progress-bar" id="timerBar"></div>
+        </div>
+
+        <div class="showcase-grid">
+            <!-- Left: Big Model Inspection Viewport -->
+            <div class="image-card">
+                <div class="image-header">
+                    <div class="image-title">
+                        <i class="fas fa-microchip" style="color: var(--accent-blue);"></i>
+                        <span id="currentFilename">Loading test images...</span>
+                    </div>
+                </div>
+
+                <!-- Main Detection Image Box (Supports Drag & Drop) -->
+                <div class="viewport-box" id="viewportBox" title="ลากไฟล์รูปภาพมาวางที่นี่ได้ทันที">
+                    <div class="image-stage" id="imageStage" style="position: relative; display: inline-flex; justify-content: center; align-items: center; max-width: 100%; max-height: 600px;">
+                        <img id="mainDetectionImage" src="" alt="Detection Preview" style="display: none; max-width: 100%; max-height: 600px; object-fit: contain; border-radius: 8px;">
+                        <canvas id="bboxCanvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 8px; display: none;"></canvas>
+                    </div>
+                    
+                    <div id="loadingOverlay" class="viewport-loading">
+                        <div class="spinner"></div>
+                        <span>โมเดล AI กำลังตรวจจับวัตถุ...</span>
+                    </div>
+
+                    <!-- Drag & Drop visual hint -->
+                    <div id="dropHint" class="drop-hint">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 36px; margin-right: 12px;"></i>
+                        วางรูปภาพที่นี่เพื่อตรวจจับด้วย AI ทันที!
+                    </div>
+                </div>
+
+                <!-- Controls Bar -->
+                <div class="controls-toolbar">
+                    <div class="btn-group">
+                        <button class="btn btn-upload" id="uploadBtn" title="เลือกไฟล์รูปจากคอมพิวเตอร์ของคุณ"><i class="fas fa-cloud-upload-alt"></i> แนบรูปทดสอบเอง</button>
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                        <button class="btn btn-resume" id="resumeSlideBtn" style="display: none;"><i class="fas fa-play"></i> กลับไปสไลด์โชว์</button>
+
+                        <button class="btn" id="prevBtn" title="ภาพก่อนหน้า (ลูกศรซ้าย)"><i class="fas fa-backward"></i> ก่อนหน้า</button>
+                        <button class="btn btn-primary" id="playPauseBtn" title="หยุด/เล่นต่อ (Spacebar)"><i class="fas fa-pause"></i> หยุดชั่วคราว</button>
+                        <button class="btn" id="nextBtn" title="ภาพถัดไป (ลูกศรขวา)">ถัดไป <i class="fas fa-forward"></i></button>
+                        <button class="btn" id="shuffleBtn" title="สุ่มภาพ"><i class="fas fa-random"></i> สุ่ม</button>
+                    </div>
+
+                    <div class="btn-group">
+                        <span class="slide-counter" id="slideCounter">ภาพที่ 0 / 0</span>
+                        
+                        <select class="select-input" id="intervalSelect" title="ปรับระยะเวลาต่อรูป">
+                            <option value="2000">2 วินาที (เร็ว)</option>
+                            <option value="4000" selected>4 วินาที (มาตรฐาน)</option>
+                            <option value="6000">6 วินาที</option>
+                            <option value="8000">8 วินาที</option>
+                        </select>
+
+                        <select class="select-input" id="datasetSelect" title="เลือกชุดภาพ">
+                            <option value="test" selected>Test Set (82 รูป)</option>
+                            <option value="valid">Valid Set (114 รูป)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Real-time Live Stats & Breakdown -->
+            <div class="side-panel">
+                <div class="panel-card">
+                    <div class="panel-title">
+                        <i class="fas fa-chart-pie"></i> ข้อมูลตรวจจับแบบเรียลไทม์
+                    </div>
+
+                    <div style="margin-bottom: 14px;">
+                        <span class="model-chip"><i class="fas fa-brain"></i> YOLOv8s Super Fine-tuned (Active Model)</span>
+                    </div>
+
+                    <div class="metric-grid">
+                        <div class="metric-box">
+                            <div class="metric-value" id="totalDetections">0</div>
+                            <div class="metric-label">อุปกรณ์ที่ตรวจพบ</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-value" id="inferenceTime">0 ms</div>
+                            <div class="metric-label">เวลาประมวลผล</div>
+                        </div>
+                    </div>
+
+                    <div class="panel-title" style="font-size: 13px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fas fa-list-check"></i> รายการอุปกรณ์เครื่องแต่งกายที่ตรวจจับได้:</span>
+                        <button id="toggleAllBoxesBtn" class="btn-toggle-all" onclick="toggleAllItems()" title="แสดงหรือซ่อนกรอบทั้งหมด">
+                            <i class="fas fa-eye"></i> ทั้งหมด
+                        </button>
+                    </div>
+
+                    <div class="detection-list" id="detectionList">
+                        <div style="text-align: center; color: var(--text-secondary); padding: 20px;">
+                            กำลังโหลดผลตรวจจับ...
+                        </div>
+                    </div>
+
+                    <!-- Tip for testing caps -->
+                    <div class="upload-tip-box">
+                        <i class="fas fa-lightbulb"></i> <strong>การทดสอบหมวกแก๊ป:</strong><br>
+                        กดปุ่ม <strong>"แนบรูปทดสอบเอง"</strong> หรือลากรูปคนใส่หมวกแก๊ปลงมาวางในช่องภาพได้เลยครับ หาก AI พบว่าไม่ใช่หมวกก่อสร้าง จะขึ้นเตือนสีแดงเป็น <strong>NO-Hardhat</strong> ทันที!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDataset = 'test';
+        let imageList = [];
+        let currentIndex = 0;
+        let isPlaying = true;
+        let isShuffle = false;
+        let slideIntervalMs = 4000;
+        let timerStartTime = 0;
+        let animFrameId = null;
+        let isFetching = false;
+        let isCustomMode = false;
+
+        const mainImage = document.getElementById('mainDetectionImage');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const dropHint = document.getElementById('dropHint');
+        const viewportBox = document.getElementById('viewportBox');
+        const timerBar = document.getElementById('timerBar');
+        const currentFilename = document.getElementById('currentFilename');
+        const safetyBadge = document.getElementById('safetyBadge');
+        const slideCounter = document.getElementById('slideCounter');
+        const totalDetections = document.getElementById('totalDetections');
+        const inferenceTime = document.getElementById('inferenceTime');
+        const detectionList = document.getElementById('detectionList');
+
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const intervalSelect = document.getElementById('intervalSelect');
+        const datasetSelect = document.getElementById('datasetSelect');
+
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const resumeSlideBtn = document.getElementById('resumeSlideBtn');
+
+        // 1. Fetch images list from backend
+        async function loadImages() {
+            try {
+                const res = await fetch('/api/slideshow/images');
+                const data = await res.json();
+                imageList = data.datasets[currentDataset].images || [];
+                currentIndex = 0;
+                updateCounter();
+                if (imageList.length > 0) {
+                    loadDetectionForCurrent();
+                }
+            } catch (err) {
+                console.error("Failed to load images:", err);
+                currentFilename.textContent = "Error loading dataset images";
+            }
+        }
+
+        // 2. Load detection on single image via API
+        async function loadDetectionForCurrent() {
+            if (isFetching || imageList.length === 0) return;
+            isFetching = true;
+            isCustomMode = false;
+            resumeSlideBtn.style.display = 'none';
+            loadingOverlay.style.display = 'flex';
+
+            const filename = imageList[currentIndex];
+            currentFilename.textContent = filename;
+            updateCounter();
+
+            try {
+                const res = await fetch(`/api/slideshow/detect/${currentDataset}/${encodeURIComponent(filename)}`);
+                const data = await res.json();
+
+                if (data.success) {
+                    displayDetectionResult(data);
+                }
+            } catch (e) {
+                console.error("Detection error:", e);
+            } finally {
+                loadingOverlay.style.display = 'none';
+                isFetching = false;
+                startTimer();
+            }
+        }
+
+        let currentData = null;
+        let highlightedId = null;
+        const bboxCanvas = document.getElementById('bboxCanvas');
+
+        function displayDetectionResult(data) {
+            currentData = data;
+            
+            // Ensure each detection has id and default visible: true
+            if (currentData.detections) {
+                currentData.detections.forEach((d, idx) => {
+                    if (d.id === undefined) d.id = idx;
+                    d.visible = true;
+                });
+            }
+
+            // Set clean raw image so canvas can draw/hide boxes smoothly
+            mainImage.src = data.raw_image_base64 || data.image_base64;
+            mainImage.style.display = 'block';
+
+            if (mainImage.complete) {
+                drawBoundingBoxes();
+            }
+            mainImage.onload = () => {
+                drawBoundingBoxes();
+            };
+
+            // Update Badge (if present)
+            if (safetyBadge) {
+                if (data.status === 'VIOLATION') {
+                    safetyBadge.className = 'status-badge violation';
+                    safetyBadge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> มีการละเมิดความปลอดภัย (Violation)';
+                } else if (data.status === 'COMPLIANT') {
+                    safetyBadge.className = 'status-badge safe';
+                    safetyBadge.innerHTML = '<i class="fas fa-shield-check"></i> ปลอดภัยครบถ้วน (100% Compliant)';
+                } else {
+                    safetyBadge.className = 'status-badge scene';
+                    safetyBadge.innerHTML = '<i class="fas fa-info-circle"></i> ไม่พบการสวมใส่อุปกรณ์ PPE';
+                }
+            }
+
+            // Update Stats
+            totalDetections.textContent = data.detections.length;
+            inferenceTime.textContent = (data.inference_time_ms || 0) + ' ms';
+
+            // Reset Toggle All button
+            const toggleAllBtn = document.getElementById('toggleAllBoxesBtn');
+            if (toggleAllBtn) {
+                toggleAllBtn.innerHTML = '<i class="fas fa-eye"></i> ทั้งหมด';
+            }
+
+            // Render Detection Breakdown Items
+            renderDetections(data.detections);
+        }
+
+        function drawBoundingBoxes() {
+            if (!bboxCanvas) return;
+            if (!mainImage || !mainImage.naturalWidth || !mainImage.naturalHeight) {
+                bboxCanvas.style.display = 'none';
+                return;
+            }
+
+            bboxCanvas.style.display = 'block';
+            bboxCanvas.width = mainImage.naturalWidth;
+            bboxCanvas.height = mainImage.naturalHeight;
+            const ctx = bboxCanvas.getContext('2d');
+            ctx.clearRect(0, 0, bboxCanvas.width, bboxCanvas.height);
+
+            if (!currentData || !currentData.detections) return;
+
+            currentData.detections.forEach(item => {
+                if (item.visible === false) return; // Hidden by eye toggle
+                if (!item.bbox || item.bbox.length !== 4) return;
+
+                const [x1, y1, x2, y2] = item.bbox;
+                const w = x2 - x1;
+                const h = y2 - y1;
+                const isHovered = (highlightedId === item.id);
+
+                let strokeColor = '#3b82f6';
+                let fillColor = 'rgba(59, 130, 246, 0.15)';
+                const nameLower = item.class.toLowerCase();
+
+                if (item.is_violation) {
+                    strokeColor = '#ef4444';
+                    fillColor = isHovered ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.18)';
+                } else if (nameLower.includes('hardhat')) {
+                    strokeColor = '#10b981';
+                    fillColor = isHovered ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.18)';
+                } else if (nameLower.includes('vest')) {
+                    strokeColor = '#06b6d4';
+                    fillColor = isHovered ? 'rgba(6, 182, 212, 0.35)' : 'rgba(6, 182, 212, 0.18)';
+                } else if (nameLower.includes('mask')) {
+                    strokeColor = '#8b5cf6';
+                    fillColor = isHovered ? 'rgba(139, 92, 246, 0.35)' : 'rgba(139, 92, 246, 0.18)';
+                } else if (nameLower === 'person') {
+                    strokeColor = '#f59e0b';
+                    fillColor = isHovered ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.10)';
+                } else if (nameLower.includes('glove')) {
+                    strokeColor = '#14b8a6';
+                    fillColor = isHovered ? 'rgba(20, 184, 166, 0.35)' : 'rgba(20, 184, 166, 0.18)';
+                }
+
+                // Draw Box
+                ctx.fillStyle = fillColor;
+                ctx.fillRect(x1, y1, w, h);
+
+                const baseLineWidth = Math.max(2, Math.round(bboxCanvas.width / 320));
+                ctx.lineWidth = isHovered ? (baseLineWidth + 3) : baseLineWidth;
+                ctx.strokeStyle = strokeColor;
+                ctx.strokeRect(x1, y1, w, h);
+
+                if (isHovered) {
+                    ctx.shadowColor = strokeColor;
+                    ctx.shadowBlur = 14;
+                    ctx.strokeRect(x1, y1, w, h);
+                    ctx.shadowBlur = 0;
+                }
+
+                // Draw Label Pill
+                const labelText = `${item.class} ${item.confidence}%`;
+                const fontSize = Math.max(12, Math.round(bboxCanvas.width / 44));
+                ctx.font = `bold ${fontSize}px "Segoe UI", Roboto, sans-serif`;
+                const textMetrics = ctx.measureText(labelText);
+                const textWidth = textMetrics.width;
+                const textHeight = fontSize * 1.35;
+
+                let labelY = y1 - textHeight;
+                if (labelY < 0) labelY = y1;
+
+                ctx.fillStyle = strokeColor;
+                ctx.fillRect(x1, labelY, textWidth + 10, textHeight);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(labelText, x1 + 5, labelY + (textHeight / 2));
+            });
+        }
+
+        window.addEventListener('resize', drawBoundingBoxes);
+
+        function toggleItemVisibility(id, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            if (!currentData || !currentData.detections) return;
+            const item = currentData.detections.find(d => d.id === id);
+            if (!item) return;
+
+            item.visible = (item.visible === false) ? true : false;
+
+            const detDiv = document.getElementById(`det-item-${id}`);
+            if (detDiv) {
+                const eyeIcon = detDiv.querySelector('.eye-btn i');
+                if (item.visible) {
+                    detDiv.classList.remove('item-hidden');
+                    if (eyeIcon) eyeIcon.className = 'fas fa-eye';
+                } else {
+                    detDiv.classList.add('item-hidden');
+                    if (eyeIcon) eyeIcon.className = 'fas fa-eye-slash';
+                }
+            }
+
+            drawBoundingBoxes();
+        }
+
+        function toggleAllItems() {
+            if (!currentData || !currentData.detections) return;
+            const anyVisible = currentData.detections.some(d => d.visible !== false);
+            const targetVisible = !anyVisible;
+
+            currentData.detections.forEach(item => {
+                item.visible = targetVisible;
+                const detDiv = document.getElementById(`det-item-${item.id}`);
+                if (detDiv) {
+                    const eyeIcon = detDiv.querySelector('.eye-btn i');
+                    if (targetVisible) {
+                        detDiv.classList.remove('item-hidden');
+                        if (eyeIcon) eyeIcon.className = 'fas fa-eye';
+                    } else {
+                        detDiv.classList.add('item-hidden');
+                        if (eyeIcon) eyeIcon.className = 'fas fa-eye-slash';
+                    }
+                }
+            });
+
+            const toggleAllBtn = document.getElementById('toggleAllBoxesBtn');
+            if (toggleAllBtn) {
+                toggleAllBtn.innerHTML = targetVisible 
+                    ? '<i class="fas fa-eye"></i> ทั้งหมด' 
+                    : '<i class="fas fa-eye-slash"></i> ทั้งหมด';
+            }
+
+            drawBoundingBoxes();
+        }
+
+        function highlightBox(id) {
+            highlightedId = id;
+            drawBoundingBoxes();
+        }
+
+        function unhighlightBox() {
+            highlightedId = null;
+            drawBoundingBoxes();
+        }
+
+        function renderDetections(items) {
+            detectionList.innerHTML = '';
+            if (!items || items.length === 0) {
+                detectionList.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">ไม่พบอุปกรณ์เครื่องแต่งกาย PPE ในภาพนี้</div>';
+                return;
+            }
+
+            items.forEach(item => {
+                const div = document.createElement('div');
+                let typeClass = 'object';
+                let icon = 'fas fa-cube';
+
+                const nameLower = item.class.toLowerCase();
+                if (item.is_violation) {
+                    typeClass = 'violation';
+                    icon = 'fas fa-exclamation-circle';
+                } else if (['hardhat', 'safety vest', 'mask'].includes(nameLower)) {
+                    typeClass = 'safe';
+                    icon = nameLower.includes('hardhat') ? 'fas fa-helmet-safety' : (nameLower.includes('mask') ? 'fas fa-mask' : 'fas fa-vest');
+                } else if (nameLower === 'person') {
+                    typeClass = 'person';
+                    icon = 'fas fa-user';
+                } else if (nameLower.includes('glove')) {
+                    typeClass = 'safe';
+                    icon = 'fas fa-mitten';
+                }
+
+                div.className = `detection-item ${typeClass} ${item.visible === false ? 'item-hidden' : ''}`;
+                div.id = `det-item-${item.id}`;
+                div.onmouseenter = () => highlightBox(item.id);
+                div.onmouseleave = () => unhighlightBox();
+                div.onclick = (e) => toggleItemVisibility(item.id, e);
+
+                div.innerHTML = `
+                    <div class="detection-name">
+                        <button class="eye-btn" onclick="toggleItemVisibility(${item.id}, event)" title="${item.visible === false ? 'คลิกเพื่อแสดงกรอบ' : 'คลิกเพื่อซ่อนกรอบ'}">
+                            <i class="fas ${item.visible !== false ? 'fa-eye' : 'fa-eye-slash'}"></i>
+                        </button>
+                        <i class="${icon}"></i>
+                        <span class="det-label">${item.class}</span>
+                    </div>
+                    <div class="detection-conf">${item.confidence}%</div>
+                `;
+                detectionList.appendChild(div);
+            });
+        }
+
+        function updateCounter() {
+            if (isCustomMode) {
+                slideCounter.textContent = 'โหมดภาพที่อัปโหลดเอง';
+            } else {
+                slideCounter.textContent = `ภาพที่ ${currentIndex + 1} / ${imageList.length}`;
+            }
+        }
+
+        // 3. Slide Timer & Animation
+        function startTimer() {
+            if (!isPlaying || isCustomMode) {
+                timerBar.style.width = '0%';
+                return;
+            }
+            timerStartTime = Date.now();
+            cancelAnimationFrame(animFrameId);
+            runTimerLoop();
+        }
+
+        function runTimerLoop() {
+            if (!isPlaying || isCustomMode) return;
+            const elapsed = Date.now() - timerStartTime;
+            const progress = Math.min(100, (elapsed / slideIntervalMs) * 100);
+            timerBar.style.width = progress + '%';
+
+            if (elapsed >= slideIntervalMs) {
+                timerBar.style.width = '100%';
+                nextSlide();
+            } else {
+                animFrameId = requestAnimationFrame(runTimerLoop);
+            }
+        }
+
+        function nextSlide() {
+            if (imageList.length === 0 || isCustomMode) return;
+            if (isShuffle) {
+                currentIndex = Math.floor(Math.random() * imageList.length);
+            } else {
+                currentIndex = (currentIndex + 1) % imageList.length;
+            }
+            loadDetectionForCurrent();
+        }
+
+        function prevSlide() {
+            if (imageList.length === 0 || isCustomMode) return;
+            currentIndex = (currentIndex - 1 + imageList.length) % imageList.length;
+            loadDetectionForCurrent();
+        }
+
+        function pauseSlideshow() {
+            isPlaying = false;
+            playPauseBtn.innerHTML = '<i class="fas fa-play"></i> เล่นสไลด์';
+            playPauseBtn.className = 'btn';
+            cancelAnimationFrame(animFrameId);
+            timerBar.style.width = '0%';
+        }
+
+        function togglePlayPause() {
+            if (isCustomMode) {
+                // Resume normal slideshow
+                resumeSlide();
+                return;
+            }
+
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                playPauseBtn.innerHTML = '<i class="fas fa-pause"></i> หยุดชั่วคราว';
+                playPauseBtn.className = 'btn btn-primary';
+                startTimer();
+            } else {
+                pauseSlideshow();
+            }
+        }
+
+        // 4. Custom Upload Logic
+        uploadBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        // Drag and drop onto viewport
+        viewportBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropHint.style.display = 'flex';
+        });
+
+        viewportBox.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropHint.style.display = 'none';
+        });
+
+        viewportBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropHint.style.display = 'none';
+            if (e.dataTransfer.files && e.dataTransfer.files[0] && e.dataTransfer.files[0].type.startsWith('image/')) {
+                handleFileUpload(e.dataTransfer.files[0]);
+            }
+        });
+
+        async function handleFileUpload(file) {
+            pauseSlideshow();
+            isCustomMode = true;
+            loadingOverlay.style.display = 'flex';
+            currentFilename.textContent = 'ภาพอัปโหลด: ' + file.name;
+            updateCounter();
+            resumeSlideBtn.style.display = 'inline-flex';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/slideshow/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    displayDetectionResult(data);
+                } else {
+                    alert('เกิดข้อผิดพลาดในการประมวลผล: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error("Upload error:", err);
+                alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อประมวลผลรูปภาพได้");
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        }
+
+        function resumeSlide() {
+            isCustomMode = false;
+            resumeSlideBtn.style.display = 'none';
+            isPlaying = true;
+            playPauseBtn.innerHTML = '<i class="fas fa-pause"></i> หยุดชั่วคราว';
+            playPauseBtn.className = 'btn btn-primary';
+            loadDetectionForCurrent();
+        }
+
+        resumeSlideBtn.addEventListener('click', resumeSlide);
+
+        // Event Listeners
+        prevBtn.addEventListener('click', () => { if (!isCustomMode) prevSlide(); });
+        nextBtn.addEventListener('click', () => { if (!isCustomMode) nextSlide(); });
+        playPauseBtn.addEventListener('click', togglePlayPause);
+
+        shuffleBtn.addEventListener('click', () => {
+            isShuffle = !isShuffle;
+            shuffleBtn.classList.toggle('active', isShuffle);
+        });
+
+        intervalSelect.addEventListener('change', (e) => {
+            slideIntervalMs = parseInt(e.target.value, 10);
+            startTimer();
+        });
+
+        datasetSelect.addEventListener('change', (e) => {
+            currentDataset = e.target.value;
+            isCustomMode = false;
+            resumeSlideBtn.style.display = 'none';
+            loadImages();
+        });
+
+        // Keyboard controls
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' && !isCustomMode) nextSlide();
+            if (e.key === 'ArrowLeft' && !isCustomMode) prevSlide();
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlayPause();
+            }
+        });
+
+        // Initialize on page load
+        loadImages();
+    </script>
+</body>
+</html>

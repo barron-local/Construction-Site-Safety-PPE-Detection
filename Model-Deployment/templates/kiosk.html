@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>จุดตรวจ PPE</title>
+<style>
+  :root {
+    --graphite: #22272e;
+    --yellow: #ffc20e;
+    --green: #0a7b3e;
+    --red: #c8102e;
+    --white: #ffffff;
+    --black: #101214;
+    --font: "DIN Alternate", "Avenir Next", "Sukhumvit Set", "Thonburi", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { font-family: var(--font); background: var(--black); color: var(--white); display: flex; flex-direction: column; }
+  main { flex: 1; display: grid; grid-template-columns: 1.2fr 1fr; min-height: 0; }
+  @media (max-aspect-ratio: 1/1) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1.2fr; } }
+
+  .camera { position: relative; background: #000; min-height: 0; }
+  .camera img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .camera-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 2rem; text-align: center; font-size: 1.5rem; background: rgba(0,0,0,.8); }
+  [hidden] { display: none !important; }
+
+  .sign { display: flex; flex-direction: column; justify-content: center; gap: 1.25rem;
+    padding: clamp(1.5rem, 4vmin, 4rem); background: var(--graphite); color: var(--white);
+    transition: background-color .25s; }
+  body[data-state="checking"] .sign { background: var(--yellow); color: var(--black); }
+  body[data-state="pass"] .sign { background: var(--green); }
+  body[data-state="fail"] .sign { background: var(--red); }
+
+  .who { min-height: 1.5em; font-size: clamp(1.1rem, 2.8vmin, 2rem); font-weight: 700; }
+  .verdict { font-weight: 800; line-height: 1.05; font-size: clamp(3.5rem, 13vmin, 11rem); }
+  .detail { font-size: clamp(1.25rem, 3.4vmin, 2.4rem); line-height: 1.35; max-width: 28ch; }
+
+  .bar { height: 14px; background: rgba(0,0,0,.2); border-radius: 7px; overflow: hidden; visibility: hidden; }
+  body[data-state="checking"] .bar { visibility: visible; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--black); transition: width .25s linear; }
+
+  .checklist { list-style: none; padding: 0; display: grid; gap: .6rem; }
+  .checklist li { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline;
+    padding: .7rem 1rem; border-radius: 8px; background: rgba(255,255,255,.14); font-size: clamp(1.1rem, 2.8vmin, 2rem); }
+  body[data-state="checking"] .checklist li { background: rgba(0,0,0,.1); }
+  .checklist li[data-s="missing"] { background: var(--white); color: var(--red); font-weight: 800; }
+  .checklist li[data-s="ok"] { font-weight: 700; }
+
+  footer { display: flex; gap: 1.5rem; align-items: center; padding: .5rem 1rem; font-size: .9rem; color: #aab; background: var(--black); }
+  footer a, footer button { color: inherit; background: none; border: 0; font: inherit; cursor: pointer; text-decoration: underline; }
+  footer a:focus-visible, footer button:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+  footer .grow { flex: 1; }
+  footer input { width: 9rem; padding: .2rem .5rem; font: inherit; color: #fff; background: #1b1f24; border: 1px solid #556; border-radius: 6px; }
+  footer input::placeholder { color: #aab; }
+
+  @media (prefers-reduced-motion: reduce) { .sign, .bar i { transition: none; } }
+</style>
+</head>
+<body data-state="idle">
+<main>
+  <section class="camera">
+    <img id="feed" alt="ภาพจากกล้อง">
+    <div class="camera-msg" id="camMsg" hidden>ไม่ได้รับภาพจากกล้อง ตรวจสอบสิทธิ์กล้องและสายต่อ ระบบกำลังลองเชื่อมต่อใหม่</div>
+  </section>
+  <section class="sign" aria-live="polite">
+    <div class="who" id="who"></div>
+    <div class="verdict" id="verdict">ยืนหน้ากล้อง</div>
+    <p class="detail" id="detail"></p>
+    <div class="bar"><i id="barFill"></i></div>
+    <ul class="checklist" id="checklist"></ul>
+  </section>
+</main>
+<footer>
+  <span id="hw">ไมโครคอนโทรลเลอร์: -</span>
+  <span class="grow"></span>
+  <label>รหัสพนักงาน <input id="emp" type="text" autocomplete="off" maxlength="32"></label>
+  <button id="empOk" type="button">ตกลง</button>
+  <a href="/logs">บันทึกผล</a>
+  <a href="/">แดชบอร์ด</a>
+  <button id="fs" type="button">เต็มจอ</button>
+</footer>
+
+<script>
+const NAME = { helmet: 'หมวกนิรภัย', vest: 'เสื้อสะท้อนแสง', mask: 'หน้ากาก' };
+const MARK = { pending: 'รอตรวจ', ok: 'มี', missing: 'ขาด' };
+const $ = id => document.getElementById(id);
+const list = a => a.map(k => NAME[k] || k).join(', ');
+
+async function startFeed() {
+  try { await fetch('/start_stream', { method: 'POST' }); } catch (e) {}
+  $('feed').src = '/video_feed?clean=1&t=' + Date.now();
+}
+
+function render(s) {
+  document.body.dataset.state = s.state;
+  const req = list(s.required);
+  let verdict, detail;
+  if (s.hint === 'multiple') {
+    verdict = 'ตรวจทีละคน';
+    detail = 'ให้คนอื่นถอยออกจากหน้ากล้อง เหลือผู้ตรวจคนเดียว';
+  } else if (s.state === 'checking') {
+    verdict = 'กำลังตรวจ';
+    detail = 'ยืนนิ่ง ๆ อีก ' + s.seconds_left + ' วินาที';
+  } else if (s.state === 'pass') {
+    verdict = 'ผ่าน';
+    detail = 'แต่งกายครบ เข้าพื้นที่ได้';
+  } else if (s.state === 'fail') {
+    verdict = 'ไม่ผ่าน';
+    detail = 'ขาด' + list(s.missing) + ' สวมให้ครบ ระบบจะตรวจใหม่อัตโนมัติ';
+  } else {
+    verdict = s.hint === 'too_far' ? 'เข้าใกล้อีกนิด' : 'ยืนหน้ากล้อง';
+    detail = 'ระบบจะตรวจ' + req + ' ก่อนเข้าพื้นที่';
+  }
+  $('verdict').textContent = verdict;
+  const e = s.employee;
+  $('who').textContent = e ? 'รหัส ' + e.code + (e.name ? ' · ' + e.name : '')
+    : (s.state === 'pass' || s.state === 'fail' ? 'ไม่ทราบรหัสพนักงาน' : 'แสดงบัตรพนักงานให้กล้องเห็น หรือพิมพ์รหัสด้านล่าง');
+  $('detail').textContent = detail;
+  $('barFill').style.width = (s.progress * 100) + '%';
+  $('checklist').innerHTML = s.required.map(k => {
+    const st = s.items[k] || 'pending';
+    return '<li data-s="' + st + '"><span>' + NAME[k] + '</span><span>' + MARK[st] + '</span></li>';
+  }).join('');
+  const hw = s.hardware || {};
+  $('hw').textContent = 'ไมโครคอนโทรลเลอร์: ' +
+    (hw.connected ? 'เชื่อมต่อแล้ว (' + hw.port + ')' : hw.pyserial === false ? 'ยังไม่ได้ติดตั้ง pyserial' : 'ไม่พบบอร์ด');
+}
+
+let lastRestart = 0;
+async function poll() {
+  try {
+    const s = await (await fetch('/api/kiosk_state')).json();
+    render(s);
+    const bad = s.stale;
+    $('camMsg').hidden = !bad;
+    if (bad && Date.now() - lastRestart > 8000) { lastRestart = Date.now(); startFeed(); }
+  } catch (e) {
+    $('camMsg').hidden = false;
+  }
+}
+
+async function sendId() {
+  const code = $('emp').value.trim();
+  if (!code) return;
+  const r = await fetch('/api/kiosk_id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+  $('emp').value = '';
+  $('emp').placeholder = r.ok ? '' : (await r.json()).message;
+}
+$('empOk').addEventListener('click', sendId);
+$('emp').addEventListener('keydown', ev => { if (ev.key === 'Enter') sendId(); });
+$('emp').focus();
+
+$('feed').addEventListener('error', () => setTimeout(startFeed, 2000));
+$('fs').addEventListener('click', () => document.documentElement.requestFullscreen && document.documentElement.requestFullscreen());
+startFeed();
+setInterval(poll, 250);
+poll();
+</script>
+</body>
+</html>

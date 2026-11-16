@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บันทึกผลตรวจเครื่องแต่งกาย</title>
+<style>
+  :root { --ink: #16191d; --muted: #5b6670; --line: #d9dde2; --bg: #f4f5f7; --green: #0a7b3e; --red: #c8102e;
+    --font: "Avenir Next", "Sukhumvit Set", "Thonburi", system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
+  header { display: flex; flex-wrap: wrap; gap: 1rem; align-items: baseline; padding: 1.25rem 2rem; background: var(--ink); color: #fff; }
+  header h1 { flex: 1; margin: 0; font-size: 1.4rem; }
+  header a { color: #fff; }
+  main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 2rem 3rem; display: grid; gap: 1.25rem; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .card, section { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.25rem; }
+  .card b { display: block; font-size: 2.4rem; line-height: 1.1; }
+  .card.pass b { color: var(--green); } .card.fail b { color: var(--red); }
+  section { overflow-x: auto; }
+  h2 { margin: 0 0 .75rem; font-size: 1.1rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: .5rem .6rem; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-size: .9rem; font-weight: 600; }
+  .badge { display: inline-block; padding: .1rem .65rem; border-radius: 999px; font-size: .9rem; font-weight: 700; }
+  .badge.pass { background: var(--green); color: #fff; } .badge.fail { background: var(--red); color: #fff; }
+  .badge.none { border: 1px solid var(--muted); color: var(--muted); }
+  textarea { width: 100%; min-height: 6rem; margin-bottom: .6rem; padding: .5rem; font: inherit; border: 1px solid var(--line); border-radius: 8px; }
+  button { padding: .45rem 1rem; font: inherit; color: #fff; background: var(--ink); border: 0; border-radius: 8px; cursor: pointer; }
+  button.link { padding: 0 .4rem; color: var(--red); background: none; text-decoration: underline; }
+  a:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid #1a73e8; outline-offset: 2px; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } main, header { padding-left: 1rem; padding-right: 1rem; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>บันทึกผลตรวจเครื่องแต่งกาย</h1>
+  <span id="date"></span>
+  <a href="/kiosk">จุดตรวจ</a>
+  <a href="/">แดชบอร์ด</a>
+</header>
+<main>
+  <div class="cards">
+    <div class="card pass"><b id="cPass">0</b>ผ่านวันนี้</div>
+    <div class="card fail"><b id="cFail">0</b>ไม่ผ่านวันนี้</div>
+    <div class="card"><b id="cNone">0</b>ยังไม่ตรวจ</div>
+  </div>
+  <p class="muted" id="unknown"></p>
+
+  <section>
+    <h2>สถานะวันนี้</h2>
+    <table>
+      <thead><tr><th>รหัส</th><th>ชื่อ</th><th>สถานะ</th><th>เวลาล่าสุด</th><th>ขาด</th></tr></thead>
+      <tbody id="today"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>ประวัติล่าสุด</h2>
+    <table>
+      <thead><tr><th>เวลา</th><th>รหัส</th><th>ชื่อ</th><th>ผล</th><th>ขาด</th><th>ภาพ</th></tr></thead>
+      <tbody id="logs"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>รายชื่อพนักงาน</h2>
+    <p class="muted">หนึ่งบรรทัดต่อคน รูปแบบ รหัส,ชื่อ (รหัสใช้ตัวอักษรอังกฤษ ตัวเลข - _ ได้ ไม่เกิน 32 ตัว) รหัสเดิมจะถูกอัปเดตชื่อ</p>
+    <textarea id="bulk" aria-label="รายชื่อพนักงาน" placeholder="1001,สมชาย ใจดี"></textarea>
+    <button id="add" type="button">เพิ่มหรืออัปเดต</button> <span class="muted" id="msg"></span>
+    <table>
+      <thead><tr><th>รหัส</th><th>ชื่อ</th><th>บัตร QR</th><th></th></tr></thead>
+      <tbody id="emps"></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+const NAME = { helmet: 'หมวกนิรภัย', vest: 'เสื้อสะท้อนแสง', mask: 'หน้ากาก' };
+const LABEL = { pass: 'ผ่าน', fail: 'ไม่ผ่าน', none: 'ยังไม่ตรวจ' };
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const miss = a => (a && a.length) ? a.map(k => NAME[k] || k).join(', ') : '-';
+const badge = s => '<span class="badge ' + s + '">' + LABEL[s] + '</span>';
+const row = cells => '<tr>' + cells.map(c => '<td>' + c + '</td>').join('') + '</tr>';
+
+async function load() {
+  try {
+    const [t, l] = await Promise.all([
+      fetch('/api/today').then(r => r.json()),
+      fetch('/api/logs?limit=50').then(r => r.json()),
+    ]);
+    $('date').textContent = t.date;
+    $('cPass').textContent = t.counts.pass;
+    $('cFail').textContent = t.counts.fail;
+    $('cNone').textContent = t.counts.none;
+    const u = t.unknown || {};
+    $('unknown').textContent = (u.pass || u.fail)
+      ? 'ไม่ทราบรหัสหรือรหัสที่ยังไม่ลงทะเบียนวันนี้: ผ่าน ' + (u.pass || 0) + ' ไม่ผ่าน ' + (u.fail || 0) : '';
+    const empty = n => '<tr><td colspan="' + n + '" class="muted">ยังไม่มีข้อมูล</td></tr>';
+    $('today').innerHTML = t.employees.map(e => row([esc(e.code), esc(e.name || '-'), badge(e.status),
+      esc(e.time ? e.time.slice(11) : '-'), esc(miss(e.missing))])).join('') || empty(5);
+    const pic = x => x.has_image
+      ? '<a href="/api/check_image/' + x.id + '.jpg" target="_blank" rel="noopener"><img src="/api/check_image/' + x.id +
+        '.jpg" alt="ภาพตอนตรวจ รหัส ' + esc(x.code || 'ไม่ทราบ') + '" width="72" loading="lazy" style="display:block;border-radius:4px"></a>' : '-';
+    $('logs').innerHTML = l.map(x => row([esc(x.time), esc(x.code || 'ไม่ทราบ'), esc(x.name || '-'),
+      badge(x.result), esc(miss(x.missing)), pic(x)])).join('') || empty(6);
+    $('emps').innerHTML = t.employees.map(e => row([esc(e.code), esc(e.name || '-'),
+      '<a href="/qr/' + encodeURIComponent(e.code) + '.png" target="_blank" rel="noopener">เปิด QR</a>',
+      '<button class="link" type="button" data-del="' + esc(e.code) + '">ลบ</button>'])).join('') || empty(4);
+  } catch (e) { /* ลองใหม่รอบถัดไป */ }
+}
+
+$('add').addEventListener('click', async () => {
+  const r = await fetch('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: $('bulk').value }) });
+  const d = await r.json();
+  $('msg').textContent = 'เพิ่มหรืออัปเดต ' + d.added + ' คน';
+  if (d.added) $('bulk').value = '';
+  load();
+});
+
+$('emps').addEventListener('click', async e => {
+  const code = e.target.dataset.del;
+  if (code && confirm('ลบรหัส ' + code + ' ออกจากรายชื่อ? (ประวัติเดิมยังอยู่)')) {
+    await fetch('/api/employees/' + encodeURIComponent(code), { method: 'DELETE' });
+    load();
+  }
+});
+
+setInterval(load, 4000);
+load();
+</script>
+</body>
+</html>
