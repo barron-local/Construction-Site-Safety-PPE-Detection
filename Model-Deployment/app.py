@@ -577,21 +577,28 @@ def api_slideshow_detect(dataset_type, filename):
             name = model.names[cls_id]
             conf = float(b.conf[0])
             bbox = [round(float(v), 1) for v in b.xyxy[0].tolist()]
+            cap_checked = False
+            cap_check_score = 0.0
             if name == 'Hardhat':
+                cap_checked = True
                 is_cap, cap_conf = verify_cap_on_crop(img, bbox)
+                cap_check_score = round(cap_conf * 100, 1)
                 if is_cap:
                     name = 'Cap'
                     conf = cap_conf
                     cv2.rectangle(plotted_img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 240), 2)
                     cv2.putText(plotted_img, f"Cap {int(conf*100)}%", (int(bbox[0]), max(20, int(bbox[1]-6))), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 240), 2)
             is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
-            detections.append({
+            det_item = {
                 'id': idx,
                 'class': name,
                 'confidence': round(conf * 100, 1),
                 'is_violation': is_neg,
                 'bbox': bbox
-            })
+            }
+            if cap_checked:
+                det_item['cap_score'] = cap_check_score
+            detections.append(det_item)
             if is_neg:
                 violations.append(name)
             elif any(k in name.lower() for k in ['hardhat', 'safety vest', 'vest', 'mask']):
@@ -611,6 +618,9 @@ def api_slideshow_detect(dataset_type, filename):
             'dataset': dataset_type,
             'status': status,
             'inference_time_ms': round(inference_ms, 1),
+            'image_width': int(img.shape[1]),
+            'image_height': int(img.shape[0]),
+            'model_name': 'YOLOv8s Ensemble (Master 200-Epoch + Cap Verifier)',
             'detections': detections,
             'image_base64': f'data:image/jpeg;base64,{b64_str}',
             'raw_image_base64': f'data:image/jpeg;base64,{raw_b64_str}'
@@ -656,21 +666,28 @@ def api_slideshow_upload():
             name = model.names[cls_id]
             conf = float(b.conf[0])
             bbox = [round(float(v), 1) for v in b.xyxy[0].tolist()]
+            cap_checked = False
+            cap_check_score = 0.0
             if name == 'Hardhat':
+                cap_checked = True
                 is_cap, cap_conf = verify_cap_on_crop(img, bbox)
+                cap_check_score = round(cap_conf * 100, 1)
                 if is_cap:
                     name = 'Cap'
                     conf = cap_conf
                     cv2.rectangle(plotted_img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 240), 2)
                     cv2.putText(plotted_img, f"Cap {int(conf*100)}%", (int(bbox[0]), max(20, int(bbox[1]-6))), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 240), 2)
             is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
-            detections.append({
+            det_item = {
                 'id': idx,
                 'class': name,
                 'confidence': round(conf * 100, 1),
                 'is_violation': is_neg,
                 'bbox': bbox
-            })
+            }
+            if cap_checked:
+                det_item['cap_score'] = cap_check_score
+            detections.append(det_item)
             if is_neg:
                 violations.append(name)
             elif any(k in name.lower() for k in ['hardhat', 'safety vest', 'vest', 'mask']):
@@ -690,6 +707,9 @@ def api_slideshow_upload():
             'dataset': 'custom_upload',
             'status': status,
             'inference_time_ms': round(inference_ms, 1),
+            'image_width': int(img.shape[1]),
+            'image_height': int(img.shape[0]),
+            'model_name': 'YOLOv8s Ensemble (Master 200-Epoch + Cap Verifier)',
             'detections': detections,
             'image_base64': f'data:image/jpeg;base64,{b64_str}',
             'raw_image_base64': f'data:image/jpeg;base64,{raw_b64_str}'

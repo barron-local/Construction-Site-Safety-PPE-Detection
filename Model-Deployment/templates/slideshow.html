@@ -120,7 +120,7 @@
         /* Main Showcase Layout */
         .showcase-grid {
             display: grid;
-            grid-template-columns: 1fr 380px;
+            grid-template-columns: 1fr 420px;
             gap: 24px;
         }
 
@@ -415,7 +415,7 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            max-height: 380px;
+            max-height: 220px;
             overflow-y: auto;
             padding-right: 4px;
         }
@@ -555,6 +555,278 @@
         .upload-tip-box strong {
             color: #2c5282;
         }
+
+        /* AI Diagnostic & Bug Report Tool Styles */
+        .ai-diagnostic-card {
+            border-top: 4px solid #6366f1;
+            position: relative;
+        }
+
+        .diagnostic-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: #e0e7ff;
+            color: #4338ca;
+            border: 1px solid #c7d2fe;
+        }
+
+        .diag-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+
+        .diag-meta-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .diag-meta-k {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .diag-meta-v {
+            font-weight: 600;
+            color: var(--text-primary);
+            max-width: 140px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .diag-meta-v.text-safe { color: #16a34a; }
+        .diag-meta-v.text-danger { color: #dc2626; }
+
+        .quick-tags-wrap {
+            margin-bottom: 10px;
+        }
+
+        .quick-tags-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .quick-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag-btn {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-align: left;
+            font-family: inherit;
+        }
+
+        .tag-btn:hover {
+            background: #e2e8f0;
+            border-color: #94a3b8;
+            color: #0f172a;
+            transform: translateY(-1px);
+        }
+
+        .tag-btn.active {
+            background: #ede9fe;
+            border-color: #a78bfa;
+            color: #6d28d9;
+            font-weight: 600;
+        }
+
+        .issue-input-wrap {
+            margin-bottom: 10px;
+        }
+
+        .issue-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .ai-input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 12px;
+            font-family: inherit;
+            background: #ffffff;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        .ai-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .prompt-box-wrap {
+            margin-top: 4px;
+        }
+
+        .prompt-box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .btn-clear-note {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 11px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .btn-clear-note:hover {
+            color: #ef4444;
+            background: #fee2e2;
+        }
+
+        .ai-prompt-box {
+            width: 100%;
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 10px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .ai-prompt-box:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+
+        .btn-copy-ai {
+            width: 100%;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+            font-family: inherit;
+        }
+
+        .btn-copy-ai:hover {
+            background: linear-gradient(135deg, #4338ca, #4f46e5);
+            box-shadow: 0 4px 10px rgba(79, 70, 229, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn-copy-ai.copied {
+            background: linear-gradient(135deg, #15803d, #16a34a) !important;
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35) !important;
+        }
+
+        .raw-json-details {
+            margin-top: 12px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            border-top: 1px dashed var(--border-color);
+            padding-top: 8px;
+        }
+
+        .raw-json-details summary {
+            cursor: pointer;
+            font-weight: 600;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #64748b;
+        }
+
+        .raw-json-details summary:hover {
+            color: var(--text-primary);
+        }
+
+        .raw-json-details pre {
+            background: #0f172a;
+            color: #38bdf8;
+            padding: 10px;
+            border-radius: 8px;
+            max-height: 220px;
+            overflow: auto;
+            font-size: 11px;
+            margin-top: 6px;
+            font-family: 'Consolas', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Toast notification */
+        .toast-notification {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 9999;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            border-left: 4px solid #10b981;
+        }
+
+        .toast-notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -587,6 +859,9 @@
                     <div class="image-title">
                         <i class="fas fa-microchip" style="color: var(--accent-blue);"></i>
                         <span id="currentFilename">Loading test images...</span>
+                    </div>
+                    <div id="safetyBadge" class="status-badge scene">
+                        <i class="fas fa-shield-alt"></i> กำลังตรวจจับ...
                     </div>
                 </div>
 
@@ -680,6 +955,79 @@
                         <i class="fas fa-lightbulb"></i> <strong>การทดสอบหมวกแก๊ป:</strong><br>
                         กดปุ่ม <strong>"แนบรูปทดสอบเอง"</strong> หรือลากรูปคนใส่หมวกแก๊ปลงมาวางในช่องภาพได้เลยครับ หาก AI พบว่าไม่ใช่หมวกก่อสร้าง จะขึ้นเตือนสีแดงเป็น <strong>NO-Hardhat</strong> ทันที!
                     </div>
+                </div>
+
+                <!-- AI Diagnostic & Bug Export Card -->
+                <div class="panel-card ai-diagnostic-card">
+                    <div class="panel-title" style="color: #4338ca; justify-content: space-between;">
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-robot" style="color: #6366f1;"></i> ส่งข้อมูลให้ AI แก้ไข (AI Diagnostic)
+                        </span>
+                        <span class="diagnostic-badge" id="aiDiagStatusPill">พร้อมส่ง</span>
+                    </div>
+
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
+                        หากภาพนี้ตรวจจับผิดพลาด (เช่น สับสนหมวกแก๊ป, ไม่พบหมวกนิรภัย หรือตรวจจับหลอน) คลิกเลือกปัญหาแล้วกดคัดลอกส่งให้ AI แก้ไขได้ทันที
+                    </p>
+
+                    <!-- Summary specs -->
+                    <div class="diag-meta-grid">
+                        <div class="diag-meta-item">
+                            <span class="diag-meta-k">ภาพ / ขนาด:</span>
+                            <span class="diag-meta-v" id="diagImageMeta">-</span>
+                        </div>
+                        <div class="diag-meta-item">
+                            <span class="diag-meta-k">ผลตรวจรวม:</span>
+                            <span class="diag-meta-v" id="diagVerdictMeta">-</span>
+                        </div>
+                        <div class="diag-meta-item">
+                            <span class="diag-meta-k">ปลอดภัย:</span>
+                            <span class="diag-meta-v text-safe" id="diagSafeCount">0 ชิ้น</span>
+                        </div>
+                        <div class="diag-meta-item">
+                            <span class="diag-meta-k">ละเมิด:</span>
+                            <span class="diag-meta-v text-danger" id="diagViolCount">0 ชิ้น</span>
+                        </div>
+                    </div>
+
+                    <!-- Quick Issue Tags -->
+                    <div class="quick-tags-wrap">
+                        <div class="quick-tags-title"><i class="fas fa-tags"></i> เลือกจุดผิดพลาดด่วน (คลิกเพื่อเติมข้อความ):</div>
+                        <div class="quick-tags">
+                            <button type="button" class="tag-btn" onclick="applyQuickTag('หมวกแก๊ปสีมืด/สว่าง ถูกตรวจจับผิดเป็น Hardhat (ต้องการให้เป็น Cap / ละเมิด)')">🧢 หมวกแก๊ปเพี้ยนเป็น Hardhat</button>
+                            <button type="button" class="tag-btn" onclick="applyQuickTag('คนงานใส่หมวกนิรภัยจริง แต่ระบบตรวจไม่พบ (Missed Hardhat)')">👷‍♂️ ไม่พบหมวกนิรภัย</button>
+                            <button type="button" class="tag-btn" onclick="applyQuickTag('ใส่เสื้อกั๊กสะท้อนแสง แต่ขึ้นเป็น NO-Safety Vest หรือไม่ตรวจจับ')">🦺 เสื้อกั๊กเพี้ยน/หลุด</button>
+                            <button type="button" class="tag-btn" onclick="applyQuickTag('ตรวจจับวัตถุหลอน หรือกรอบ Bounding box ซ้ำซ้อน (Ghost / Duplicate box)')">👻 ตรวจจับหลอน/ซ้ำ</button>
+                        </div>
+                    </div>
+
+                    <!-- Custom Issue Input -->
+                    <div class="issue-input-wrap">
+                        <label for="aiUserNote" class="issue-label"><i class="fas fa-edit"></i> ระบุปัญหาเพิ่มเติม (พิมพ์ได้อิสระ):</label>
+                        <input type="text" id="aiUserNote" class="ai-input" placeholder="เช่น คนทางซ้ายใส่หมวกแก๊ปแต่ระบบตรวจเป็น Hardhat 90%..." oninput="updateAiPromptText()">
+                    </div>
+
+                    <!-- Generated AI Prompt Textarea -->
+                    <div class="prompt-box-wrap">
+                        <div class="prompt-box-header">
+                            <span><i class="fas fa-terminal"></i> ข้อความสรุปสำหรับส่งให้ AI:</span>
+                            <button class="btn-clear-note" onclick="clearUserNote()" title="ล้างข้อความที่พิมพ์"><i class="fas fa-times"></i> ล้าง</button>
+                        </div>
+                        <textarea id="aiPromptTextarea" class="ai-prompt-box" readonly rows="7" placeholder="รอผลการตรวจจับเพื่อสร้างข้อมูล Prompt สำหรับ AI..."></textarea>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+                        <button class="btn-copy-ai" id="copyAiBtn" onclick="copyAiPrompt()">
+                            <i class="fas fa-copy"></i> คัดลอกข้อความสำหรับส่งให้ AI ทันที
+                        </button>
+                    </div>
+
+                    <!-- Raw JSON Accordion -->
+                    <details class="raw-json-details">
+                        <summary><i class="fas fa-code"></i> ดูข้อมูล JSON ดิบทั้งหมด (Raw JSON)</summary>
+                        <pre id="rawJsonBlock">{}</pre>
+                    </details>
                 </div>
             </div>
         </div>
@@ -817,6 +1165,9 @@
 
             // Render Detection Breakdown Items
             renderDetections(data.detections);
+
+            // Update AI Diagnostic & Bug Report Tool
+            updateAiDiagnosticSection(data);
         }
 
         function drawBoundingBoxes() {
@@ -1023,6 +1374,220 @@
             } else {
                 slideCounter.textContent = `ภาพที่ ${currentIndex + 1} / ${imageList.length}`;
             }
+        }
+
+        // ==========================================
+        // AI DIAGNOSTIC & BUG EXPORT FUNCTIONS
+        // ==========================================
+        let lastDiagnosticData = null;
+
+        function updateAiDiagnosticSection(data) {
+            if (!data) return;
+            lastDiagnosticData = data;
+
+            const imgWidth = data.image_width || (mainImage ? mainImage.naturalWidth : 640);
+            const imgHeight = data.image_height || (mainImage ? mainImage.naturalHeight : 640);
+            const fname = data.filename || (isCustomMode ? 'Custom Upload' : (imageList[currentIndex] || 'Image'));
+
+            // Update Meta specs
+            const metaImg = document.getElementById('diagImageMeta');
+            if (metaImg) metaImg.textContent = `${fname} (${imgWidth}x${imgHeight})`;
+
+            const metaVerdict = document.getElementById('diagVerdictMeta');
+            if (metaVerdict) {
+                metaVerdict.textContent = data.status || 'UNKNOWN';
+                metaVerdict.className = `diag-meta-v ${data.status === 'VIOLATION' ? 'text-danger' : (data.status === 'COMPLIANT' ? 'text-safe' : '')}`;
+            }
+
+            const detections = data.detections || [];
+            const violCount = detections.filter(d => d.is_violation).length;
+            const safeCount = detections.filter(d => !d.is_violation && d.class.toLowerCase() !== 'person').length;
+
+            const safeEl = document.getElementById('diagSafeCount');
+            if (safeEl) safeEl.textContent = `${safeCount} ชิ้น`;
+
+            const violEl = document.getElementById('diagViolCount');
+            if (violEl) violEl.textContent = `${violCount} ชิ้น`;
+
+            const pill = document.getElementById('aiDiagStatusPill');
+            if (pill) {
+                pill.textContent = data.status === 'VIOLATION' ? '⚠️ มีการละเมิด' : (data.status === 'COMPLIANT' ? '✅ ปลอดภัย' : 'ℹ️ ทั่วไป');
+                pill.style.background = data.status === 'VIOLATION' ? '#fee2e2' : (data.status === 'COMPLIANT' ? '#dcfce7' : '#e0e7ff');
+                pill.style.color = data.status === 'VIOLATION' ? '#991b1b' : (data.status === 'COMPLIANT' ? '#166534' : '#3730a3');
+                pill.style.borderColor = data.status === 'VIOLATION' ? '#fca5a5' : (data.status === 'COMPLIANT' ? '#86efac' : '#c7d2fe');
+            }
+
+            // Update Raw JSON block
+            const rawPre = document.getElementById('rawJsonBlock');
+            if (rawPre) {
+                const cleanData = {
+                    filename: fname,
+                    dataset: data.dataset || currentDataset,
+                    status: data.status,
+                    inference_time_ms: data.inference_time_ms,
+                    image_dimensions: { width: imgWidth, height: imgHeight },
+                    model: data.model_name || 'YOLOv8s Ensemble (Master 200-Epoch + Cap Verifier)',
+                    total_detections: detections.length,
+                    detections: detections.map(d => ({
+                        id: d.id,
+                        class: d.class,
+                        confidence: d.confidence,
+                        is_violation: d.is_violation,
+                        bbox_xyxy: d.bbox,
+                        cap_score: d.cap_score !== undefined ? d.cap_score : null
+                    }))
+                };
+                rawPre.textContent = JSON.stringify(cleanData, null, 2);
+            }
+
+            // Generate prompt text
+            updateAiPromptText();
+        }
+
+        function updateAiPromptText() {
+            if (!lastDiagnosticData) return;
+            const data = lastDiagnosticData;
+            const userNoteInput = document.getElementById('aiUserNote');
+            const userNote = userNoteInput ? userNoteInput.value.trim() : '';
+
+            const imgWidth = data.image_width || (mainImage ? mainImage.naturalWidth : 640);
+            const imgHeight = data.image_height || (mainImage ? mainImage.naturalHeight : 640);
+            const fname = data.filename || (isCustomMode ? 'Custom Upload' : (imageList[currentIndex] || 'Image'));
+            const datasetName = isCustomMode ? 'ภาพอัปโหลดเอง (Custom Upload)' : (currentDataset === 'test' ? 'Test Set (82 รูป)' : 'Valid Set (114 รูป)');
+            const detections = data.detections || [];
+            const violCount = detections.filter(d => d.is_violation).length;
+            const safeCount = detections.filter(d => !d.is_violation && d.class.toLowerCase() !== 'person').length;
+
+            let p = `### 🚨 [รายงานตรวจจับ PPE ผิดพลาด/เพี้ยน เพื่อส่งให้ AI ปรับแก้]\n\n`;
+            p += `**1. ข้อมูลรูปภาพและระบบ:**\n`;
+            p += `- ไฟล์: \`${fname}\`\n`;
+            p += `- ชุดข้อมูล: ${datasetName}\n`;
+            p += `- ขนาดภาพ: ${imgWidth} x ${imgHeight} px\n`;
+            p += `- โมเดล: ${data.model_name || 'YOLOv8s Ensemble (Master 200-Epoch + Cap Verifier)'}\n`;
+            p += `- เวลาประมวลผล: ${data.inference_time_ms || 0} ms\n`;
+            p += `- ผลลัพธ์ระบบ: **${data.status}** (ตรวจพบปลอดภัย: ${safeCount} ชิ้น, ละเมิด: ${violCount} ชิ้น)\n\n`;
+
+            p += `**2. รายการ Bounding Box ที่ตรวจพบ (${detections.length} รายการ):**\n`;
+            if (detections.length === 0) {
+                p += `- (ไม่พบวัตถุหรืออุปกรณ์ใดๆ ในภาพนี้)\n`;
+            } else {
+                detections.forEach((d, i) => {
+                    const statusEmoji = d.is_violation ? '❌ ละเมิด (Violation)' : '✅ ปลอดภัย (Compliant)';
+                    const bboxStr = d.bbox ? `[${d.bbox.join(', ')}]` : 'N/A';
+                    let capNote = '';
+                    if (d.cap_score !== undefined && d.cap_score > 0) {
+                        capNote = ` | Cap Verifier Score: ${d.cap_score}%`;
+                    }
+                    p += `${i + 1}. **[${d.class}]** ความมั่นใจ: ${d.confidence}%${capNote} | สถานะ: ${statusEmoji} | พิกัด BBox [x1, y1, x2, y2]: \`${bboxStr}\`\n`;
+                });
+            }
+
+            p += `\n**3. สิ่งที่ผิดพลาด/ปัญหาที่สังเกตเห็นจริงในภาพ:**\n`;
+            if (userNote) {
+                p += `👉 **"${userNote}"**\n`;
+            } else {
+                p += `👉 *(ยังไม่ได้ระบุข้อความ - ตัวอย่าง: "หมวกแก๊ปสีดำของคนซ้ายกลับขึ้นเป็น Hardhat" หรือ "คนกลางใส่หมวกนิรภัยแต่ระบบไม่ตรวจจับ")*\n`;
+            }
+
+            p += `\n**4. สิ่งที่ต้องการให้ AI ช่วย:**\n`;
+            p += `1. วิเคราะห์สาเหตุที่ทำให้โมเดลเกิดข้อผิดพลาดนี้ (สับสน Feature, BBox ซ้อนทับ, หรือ Threshold ไม่เหมาะสม)\n`;
+            p += `2. แนะนำการปรับจูนค่าพารามิเตอร์ (Confidence Threshold, NMS IoU, Crop padding หรือ Logic ในโค้ด)\n`;
+            p += `3. เสนอโค้ดและวิธีแก้ไขอย่างตรงจุดเพื่อให้โมเดลตรวจจับได้อย่างถูกต้อง\n`;
+
+            const textarea = document.getElementById('aiPromptTextarea');
+            if (textarea) {
+                textarea.value = p;
+            }
+        }
+
+        function applyQuickTag(tagText) {
+            const input = document.getElementById('aiUserNote');
+            if (!input) return;
+            input.value = tagText;
+            updateAiPromptText();
+
+            document.querySelectorAll('.tag-btn').forEach(b => {
+                if (b.textContent.includes(tagText.substring(0, 7))) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+            });
+
+            const textarea = document.getElementById('aiPromptTextarea');
+            if (textarea) textarea.focus();
+
+            showToast(`🏷️ ระบุปัญหา: "${tagText.split('(')[0].trim()}"`);
+        }
+
+        function clearUserNote() {
+            const input = document.getElementById('aiUserNote');
+            if (input) input.value = '';
+            document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+            updateAiPromptText();
+            showToast('🧹 ล้างข้อความปัญหาเรียบร้อย');
+        }
+
+        function copyAiPrompt() {
+            const textarea = document.getElementById('aiPromptTextarea');
+            if (!textarea || !textarea.value) {
+                showToast('⚠️ ยังไม่มีข้อมูลตรวจจับให้คัดลอก');
+                return;
+            }
+
+            const textToCopy = textarea.value;
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    triggerCopySuccess();
+                }).catch(() => {
+                    fallbackCopy(textToCopy);
+                });
+            } else {
+                fallbackCopy(textToCopy);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const textarea = document.getElementById('aiPromptTextarea');
+            if (!textarea) return;
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            try {
+                document.execCommand('copy');
+                triggerCopySuccess();
+            } catch (e) {
+                showToast('❌ ไม่สามารถคัดลอกอัตโนมัติได้ กรุณาคัดลอกจากกล่องข้อความ');
+            }
+        }
+
+        function triggerCopySuccess() {
+            const btn = document.getElementById('copyAiBtn');
+            if (btn) {
+                btn.classList.add('copied');
+                btn.innerHTML = '<i class="fas fa-check-circle"></i> คัดลอกสำเร็จแล้ว! วางในแชท AI ได้ทันที';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<i class="fas fa-copy"></i> คัดลอกข้อความสำหรับส่งให้ AI ทันที';
+                }, 2500);
+            }
+            showToast('📋 คัดลอกข้อความสำหรับส่งให้ AI เรียบร้อยแล้ว!');
+        }
+
+        function showToast(message) {
+            let toast = document.getElementById('toastNotification');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toastNotification';
+                toast.className = 'toast-notification';
+                document.body.appendChild(toast);
+            }
+            toast.innerHTML = message;
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2800);
         }
 
         // 3. Slide Timer & Animation
