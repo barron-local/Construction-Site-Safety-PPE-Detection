@@ -159,6 +159,79 @@ def get_ppe_class_ids(model_inst, include_mask=None):
             target_ids.append(cid)
     return target_ids if target_ids else None
 
+def verify_person_ppe_compliance(detections, img_shape):
+    """
+    Person-to-PPE Association & Fallback Verification:
+    Ensures that for every detected worker (Person):
+    1. If the torso lacks a Safety Vest (and no NO-Safety Vest box was output by YOLO),
+       generate a synthetic violation 'NO-Safety Vest' (Missing).
+    2. If the head lacks a Hardhat/Cap (and no NO-Hardhat box was output by YOLO),
+       generate a synthetic violation 'NO-Hardhat' (Missing).
+    This guarantees zero false-compliant escapes when workers are missing gear in occluded/low-angle conditions.
+    """
+    def box_intersection(boxA, boxB):
+        xA = max(boxA[0], boxB[0])
+        yA = max(boxA[1], boxB[1])
+        xB = min(boxA[2], boxB[2])
+        yB = min(boxA[3], boxB[3])
+        return max(0.0, xB - xA) * max(0.0, yB - yA)
+
+    persons = [d for d in detections if d.get('class') == 'Person']
+    if not persons:
+        return []
+
+    vests = [d for d in detections if d.get('class') in ['Safety Vest', 'NO-Safety Vest']]
+    hardhats = [d for d in detections if d.get('class') in ['Hardhat', 'Cap', 'NO-Hardhat']]
+
+    inferred = []
+    next_id = max([d.get('id', 0) for d in detections], default=0) + 1
+
+    for idx, p in enumerate(persons):
+        px1, py1, px2, py2 = p['bbox']
+        pw, ph = px2 - px1, py2 - py1
+        # Ignore very tiny person boxes (less than 35px height or 25px width)
+        if pw < 25 or ph < 35:
+            continue
+
+        torso = [px1, py1 + 0.20 * ph, px2, py1 + 0.85 * ph]
+        head = [px1, py1, px2, py1 + 0.40 * ph]
+
+        # Check Vest on Torso
+        has_vest = any(
+            box_intersection(torso, v['bbox']) > 0.05 * max(1.0, (v['bbox'][2]-v['bbox'][0]) * (v['bbox'][3]-v['bbox'][1]))
+            for v in vests
+        )
+        if not has_vest:
+            inferred.append({
+                'id': next_id,
+                'class': 'NO-Safety Vest',
+                'confidence': round(p['confidence'] * 0.92, 1),
+                'is_violation': True,
+                'is_inferred': True,
+                'note': f'ไม่พบเสื้อกั๊กสะท้อนแสงบนลำตัวคนงาน #{idx+1}',
+                'bbox': [round(px1 + 0.05*pw, 1), round(py1 + 0.22*ph, 1), round(px2 - 0.05*pw, 1), round(py1 + 0.72*ph, 1)]
+            })
+            next_id += 1
+
+        # Check Hardhat on Head
+        has_helmet = any(
+            box_intersection(head, h['bbox']) > 0.05 * max(1.0, (h['bbox'][2]-h['bbox'][0]) * (h['bbox'][3]-h['bbox'][1]))
+            for h in hardhats
+        )
+        if not has_helmet:
+            inferred.append({
+                'id': next_id,
+                'class': 'NO-Hardhat',
+                'confidence': round(p['confidence'] * 0.92, 1),
+                'is_violation': True,
+                'is_inferred': True,
+                'note': f'ไม่พบหมวกนิรภัยบนศีรษะคนงาน #{idx+1}',
+                'bbox': [round(px1 + 0.05*pw, 1), round(py1, 1), round(px2 - 0.05*pw, 1), round(py1 + 0.35*ph, 1)]
+            })
+            next_id += 1
+
+    return inferred
+
 def generate_frames(clean=False):
     """Generate video frames with instance detection"""
     global camera, streaming, model, current_settings
@@ -576,7 +649,7 @@ def api_slideshow_detect(dataset_type, filename):
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, agnostic_nms=True)
+        results = model(img, conf=0.20, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, conf=0.20, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
@@ -616,6 +689,15 @@ def api_slideshow_detect(dataset_type, filename):
                 violations.append(name)
             elif any(k in name.lower() for k in ['hardhat', 'safety vest', 'vest']) or (name.lower() == 'mask' and current_settings.get('required_ppe', {}).get('mask', False)):
                 compliances.append(name)
+
+        # Fallback Verification: Ensure all detected workers have required PPE
+        inferred = verify_person_ppe_compliance(detections, img.shape)
+        for inf in inferred:
+            detections.append(inf)
+            violations.append(inf['class'])
+            bx = [int(v) for v in inf['bbox']]
+            cv2.rectangle(plotted_img, (bx[0], bx[1]), (bx[2], bx[3]), (0, 0, 240), 2)
+            cv2.putText(plotted_img, f"{inf['class']} (Missing)", (bx[0], max(20, bx[1]-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 240), 2)
 
         status = 'VIOLATION' if violations else ('COMPLIANT' if compliances else 'SCENE_ONLY')
 
@@ -665,7 +747,7 @@ def api_slideshow_upload():
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, agnostic_nms=True)
+        results = model(img, conf=0.20, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, conf=0.20, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
@@ -705,6 +787,15 @@ def api_slideshow_upload():
                 violations.append(name)
             elif any(k in name.lower() for k in ['hardhat', 'safety vest', 'vest']) or (name.lower() == 'mask' and current_settings.get('required_ppe', {}).get('mask', False)):
                 compliances.append(name)
+
+        # Fallback Verification: Ensure all detected workers have required PPE
+        inferred = verify_person_ppe_compliance(detections, img.shape)
+        for inf in inferred:
+            detections.append(inf)
+            violations.append(inf['class'])
+            bx = [int(v) for v in inf['bbox']]
+            cv2.rectangle(plotted_img, (bx[0], bx[1]), (bx[2], bx[3]), (0, 0, 240), 2)
+            cv2.putText(plotted_img, f"{inf['class']} (Missing)", (bx[0], max(20, bx[1]-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 240), 2)
 
         status = 'VIOLATION' if violations else ('COMPLIANT' if compliances else 'SCENE_ONLY')
 

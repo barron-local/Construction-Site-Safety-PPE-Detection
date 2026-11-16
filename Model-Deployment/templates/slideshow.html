@@ -1235,7 +1235,7 @@
                 }
 
                 // Draw Label Pill
-                const labelText = `${item.class} ${item.confidence}%`;
+                const labelText = item.is_inferred ? `${item.class} (Missing)` : `${item.class} ${item.confidence}%`;
                 const fontSize = Math.max(12, Math.round(bboxCanvas.width / 44));
                 ctx.font = `bold ${fontSize}px "Segoe UI", Roboto, sans-serif`;
                 const textMetrics = ctx.measureText(labelText);
@@ -1360,7 +1360,7 @@
                             <i class="fas ${item.visible !== false ? 'fa-eye' : 'fa-eye-slash'}"></i>
                         </button>
                         <i class="${icon}"></i>
-                        <span class="det-label">${item.class}</span>
+                        <span class="det-label">${item.class} ${item.is_inferred ? '<span style="color:#ef4444;font-size:10px;font-weight:600;">(Missing)</span>' : ''}</span>
                     </div>
                     <div class="detection-conf">${item.confidence}%</div>
                 `;
@@ -1478,7 +1478,8 @@
                     if (d.cap_score !== undefined && d.cap_score > 0) {
                         capNote = ` | Cap Verifier Score: ${d.cap_score}%`;
                     }
-                    p += `${i + 1}. **[${d.class}]** ความมั่นใจ: ${d.confidence}%${capNote} | สถานะ: ${statusEmoji} | พิกัด BBox [x1, y1, x2, y2]: \`${bboxStr}\`\n`;
+                    let noteStr = d.note ? ` (${d.note})` : '';
+                    p += `${i + 1}. **[${d.class}]** ความมั่นใจ: ${d.confidence}%${capNote}${noteStr} | สถานะ: ${statusEmoji} | พิกัด BBox [x1, y1, x2, y2]: \`${bboxStr}\`\n`;
                 });
             }
 
