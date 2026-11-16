@@ -67,32 +67,69 @@ def save_settings_to_file(settings):
 
 current_settings = load_settings()
 
+cap_verifier = None
+
 def load_model():
-    """Load YOLO model - Exclusively locked to yolov8s_ppe_finetuned_super"""
-    global model
+    """Load Master 200-Epoch Super PPE Model + Dedicated Cap Verification Model"""
+    global model, cap_verifier
     super_model_path = os.path.abspath(os.path.join(
         os.path.dirname(__file__),
-        '../Model-Training/Outputs/runs/detect/yolov8s_ppe_finetuned_super/weights/best.pt'
+        '../Model-Training/Outputs/runs/detect/yolov8s_ppe_css_200_epochs/weights/best.pt'
+    ))
+    cap_model_path = os.path.abspath(os.path.join(
+        os.path.dirname(__file__),
+        '../Model-Training/Outputs/runs/detect/yolov8s_ppe_model_with_cap_class/weights/best.pt'
     ))
     
     candidates = [
-        r"C:\Users\Woradech\Documents\Construction-Site-Safety-PPE-Detection-main\Model-Training\Outputs\runs\detect\yolov8s_ppe_finetuned_super\weights\best.pt",
         super_model_path,
-        '../Model-Training/Outputs/runs/detect/yolov8s_ppe_finetuned_super/weights/best.pt',
-        'Model-Training/Outputs/runs/detect/yolov8s_ppe_finetuned_super/weights/best.pt'
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '../Model-Training/Outputs/runs/detect/yolov8s_ppe_finetuned_super/weights/best.pt'))
     ]
     chosen = None
     for p in candidates:
-        p_abs = os.path.abspath(p)
-        if os.path.exists(p_abs):
-            chosen = p_abs
+        if os.path.exists(p):
+            chosen = p
             break
 
     if chosen:
-        print(f"[+] [EXCLUSIVE] Loaded Super PPE Model: {chosen}")
+        print(f"[+] [EXCLUSIVE] Loaded Master PPE Model: {chosen}")
         model = YOLO(chosen)
     else:
-        raise FileNotFoundError(f"[-] Critical: Super PPE model not found at {super_model_path}")
+        raise FileNotFoundError(f"[-] Critical: PPE model not found at {super_model_path}")
+
+    if os.path.exists(cap_model_path):
+        print(f"[+] [EXCLUSIVE] Loaded Cap Verification Model: {cap_model_path}")
+        cap_verifier = YOLO(cap_model_path)
+    else:
+        print(f"[!] Warning: Cap verification model not found at {cap_model_path}")
+
+def verify_cap_on_crop(img, bbox):
+    """If a Hardhat is candidate-detected, verify whether it is actually a baseball cap (ผ้า/หมวกแก๊ป)"""
+    global cap_verifier
+    if cap_verifier is None:
+        return False, 0.0
+    try:
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+        h, w = img.shape[:2]
+        pad_w = int((x2 - x1) * 0.12)
+        pad_h = int((y2 - y1) * 0.12)
+        cx1 = max(0, x1 - pad_w)
+        cy1 = max(0, y1 - pad_h)
+        cx2 = min(w, x2 + pad_w)
+        cy2 = min(h, y2 + pad_h)
+        crop = img[cy1:cy2, cx1:cx2]
+        if crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
+            return False, 0.0
+        c_res = cap_verifier.predict(crop, conf=0.50, verbose=False)[0]
+        max_cap = 0.0
+        for cb in c_res.boxes:
+            if cap_verifier.names[int(cb.cls[0])].lower() == 'cap':
+                max_cap = max(max_cap, float(cb.conf[0]))
+        if max_cap >= 0.82:
+            return True, max_cap
+    except Exception:
+        pass
+    return False, 0.0
 
 def get_ppe_class_ids(model_inst):
     """Filter class IDs to focus STRICTLY on worker PPE attire & person, ignoring vehicles & machinery"""
@@ -144,6 +181,11 @@ def generate_frames(clean=False):
                     conf = float(box.conf[0])
                     cls = int(box.cls[0])
                     class_name = model.names[cls]
+                    if class_name == 'Hardhat':
+                        is_cap, cap_conf = verify_cap_on_crop(frame, [x1, y1, x2, y2])
+                        if is_cap:
+                            class_name = 'Cap'
+                            conf = cap_conf
                     
                     all_detections.append({
                         'class': class_name,
@@ -521,15 +563,10 @@ def api_slideshow_detect(dataset_type, filename):
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, classes=ppe_ids, imgsz=1024, agnostic_nms=True) if ppe_ids else model(img, imgsz=1024, agnostic_nms=True)
+        results = model(img, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
-        _, buffer = cv2.imencode('.jpg', plotted_img, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        b64_str = base64.b64encode(buffer).decode('utf-8')
-
-        _, raw_buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        raw_b64_str = base64.b64encode(raw_buffer).decode('utf-8')
 
         detections = []
         violations = []
@@ -539,8 +576,15 @@ def api_slideshow_detect(dataset_type, filename):
             cls_id = int(b.cls[0])
             name = model.names[cls_id]
             conf = float(b.conf[0])
-            is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
             bbox = [round(float(v), 1) for v in b.xyxy[0].tolist()]
+            if name == 'Hardhat':
+                is_cap, cap_conf = verify_cap_on_crop(img, bbox)
+                if is_cap:
+                    name = 'Cap'
+                    conf = cap_conf
+                    cv2.rectangle(plotted_img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 240), 2)
+                    cv2.putText(plotted_img, f"Cap {int(conf*100)}%", (int(bbox[0]), max(20, int(bbox[1]-6))), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 240), 2)
+            is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
             detections.append({
                 'id': idx,
                 'class': name,
@@ -554,6 +598,12 @@ def api_slideshow_detect(dataset_type, filename):
                 compliances.append(name)
 
         status = 'VIOLATION' if violations else ('COMPLIANT' if compliances else 'SCENE_ONLY')
+
+        _, buffer = cv2.imencode('.jpg', plotted_img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        b64_str = base64.b64encode(buffer).decode('utf-8')
+
+        _, raw_buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        raw_b64_str = base64.b64encode(raw_buffer).decode('utf-8')
 
         return jsonify({
             'success': True,
@@ -592,15 +642,10 @@ def api_slideshow_upload():
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, classes=ppe_ids, imgsz=1024, agnostic_nms=True) if ppe_ids else model(img, imgsz=1024, agnostic_nms=True)
+        results = model(img, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
-        _, buffer = cv2.imencode('.jpg', plotted_img, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        b64_str = base64.b64encode(buffer).decode('utf-8')
-
-        _, raw_buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        raw_b64_str = base64.b64encode(raw_buffer).decode('utf-8')
 
         detections = []
         violations = []
@@ -610,8 +655,15 @@ def api_slideshow_upload():
             cls_id = int(b.cls[0])
             name = model.names[cls_id]
             conf = float(b.conf[0])
-            is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
             bbox = [round(float(v), 1) for v in b.xyxy[0].tolist()]
+            if name == 'Hardhat':
+                is_cap, cap_conf = verify_cap_on_crop(img, bbox)
+                if is_cap:
+                    name = 'Cap'
+                    conf = cap_conf
+                    cv2.rectangle(plotted_img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 240), 2)
+                    cv2.putText(plotted_img, f"Cap {int(conf*100)}%", (int(bbox[0]), max(20, int(bbox[1]-6))), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 240), 2)
+            is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
             detections.append({
                 'id': idx,
                 'class': name,
@@ -625,6 +677,12 @@ def api_slideshow_upload():
                 compliances.append(name)
 
         status = 'VIOLATION' if violations else ('COMPLIANT' if compliances else 'SCENE_ONLY')
+
+        _, buffer = cv2.imencode('.jpg', plotted_img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        b64_str = base64.b64encode(buffer).decode('utf-8')
+
+        _, raw_buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        raw_b64_str = base64.b64encode(raw_buffer).decode('utf-8')
 
         return jsonify({
             'success': True,
