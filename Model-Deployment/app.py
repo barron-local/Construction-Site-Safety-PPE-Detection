@@ -104,15 +104,18 @@ def load_model():
         print(f"[!] Warning: Cap verification model not found at {cap_model_path}")
 
 def verify_cap_on_crop(img, bbox):
-    """If a Hardhat is candidate-detected, verify whether it is actually a baseball cap (ผ้า/หมวกแก๊ป)"""
+    """If a Hardhat is candidate-detected, verify whether it is actually a baseball cap (ผ้า/หมวกแก๊ป)
+    Uses anatomical face/head context padding (45%) and competitive Cap vs Hardhat score arbitration.
+    """
     global cap_verifier
     if cap_verifier is None:
         return False, 0.0
     try:
         x1, y1, x2, y2 = [int(v) for v in bbox]
         h, w = img.shape[:2]
-        pad_w = int((x2 - x1) * 0.12)
-        pad_h = int((y2 - y1) * 0.12)
+        # Use 45% padding so YOLO retains facial/forehead context rather than an isolated dome
+        pad_w = int((x2 - x1) * 0.45)
+        pad_h = int((y2 - y1) * 0.45)
         cx1 = max(0, x1 - pad_w)
         cy1 = max(0, y1 - pad_h)
         cx2 = min(w, x2 + pad_w)
@@ -120,12 +123,18 @@ def verify_cap_on_crop(img, bbox):
         crop = img[cy1:cy2, cx1:cx2]
         if crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
             return False, 0.0
-        c_res = cap_verifier.predict(crop, conf=0.50, verbose=False)[0]
+        c_res = cap_verifier.predict(crop, conf=0.20, verbose=False)[0]
         max_cap = 0.0
+        max_hardhat = 0.0
         for cb in c_res.boxes:
-            if cap_verifier.names[int(cb.cls[0])].lower() == 'cap':
-                max_cap = max(max_cap, float(cb.conf[0]))
-        if max_cap >= 0.82:
+            cls_name = cap_verifier.names[int(cb.cls[0])].lower()
+            conf = float(cb.conf[0])
+            if cls_name == 'cap':
+                max_cap = max(max_cap, conf)
+            elif cls_name == 'hardhat':
+                max_hardhat = max(max_hardhat, conf)
+        # Cap is confirmed only if Cap confidence is prominent AND dominates over genuine Hardhat confidence
+        if max_cap >= 0.70 and max_cap > max_hardhat:
             return True, max_cap
     except Exception:
         pass
