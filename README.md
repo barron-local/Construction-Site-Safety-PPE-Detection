@@ -388,13 +388,25 @@ Construction-Site-Safety-PPE-Detection/
 
 The YoloV8s model underwent comprehensive training for **200 epochs** on the construction site safety dataset using an NVIDIA RTX 5060 Ti GPU. The training process completed in approximately **1.92 hours**, demonstrating efficient transfer learning.
 
-#### Final Metrics Achieved:
-| Metric | Value |
-|--------|-------|
-| **Precision** | 0.95 |
-| **Recall** | 0.7975 |
-| **mAP@50%** | 0.8767 |
-| **mAP@50-95%** | 0.6152 |
+#### Final Metrics Achieved (ค่าประสิทธิภาพจริงจากการเทรน):
+| ตัวชี้วัด (Metric) | ค่าจริงทศนิยม (Raw Value) | ค่าร้อยละ (Percentage) | รายละเอียดความหมาย |
+|-------------------|--------------------------|------------------------|-------------------|
+| **Precision** (ความแม่นยำ) | **0.95000** | **95.00%** | เมื่อ AI ตรวจพบอุปกรณ์ PPE จะถูกต้องถึง 95 ใน 100 ครั้ง (False Positive ต่ำมาก) |
+| **Recall** (ความครอบคลุม) | **0.79750** | **79.75%** | ตรวจจับและเก็บอุปกรณ์ PPE ที่ปรากฏในภาพได้ครอบคลุมเกือบ 80% |
+| **mAP@50%** (ความแม่นยำเฉลี่ย) | **0.87671** | **87.67%** | คะแนนเฉลี่ยความแม่นยำทุกคลาสที่เกณฑ์ IoU 0.50 (เกณฑ์มาตรฐานอุตสาหกรรม) |
+| **mAP@50-95%** (เกณฑ์เข้มงวด) | **0.61517** | **61.52%** | คะแนนเฉลี่ยความแม่นยำระดับตีกรอบตำแหน่งแม่นยำสูง (Strict IoU Threshold) |
+
+#### ค่า Loss ที่ได้จริง ณ Epoch 200 (Convergence Losses):
+| หมวดหมู่ Loss | Box Loss (ตำแหน่งกรอบ) | Cls Loss (การจำแนกประเภท) | DFL Loss (ขอบเขตวัตถุ) |
+|--------------|-----------------------|-------------------------|------------------------|
+| **Training Loss** | 0.47279 | 0.29951 | 0.89474 |
+| **Validation Loss** | 1.06122 | 0.54141 | 1.23385 |
+
+#### Best Model Checkpoint (Epoch 166):
+- **Best mAP@50%**: `0.88159` (**88.16%**)
+- **Precision at Best**: `0.93273` (**93.27%**)
+- **Recall at Best**: `0.81083` (**81.08%**)
+- **Weights Saved**: `weights/best.pt` (บันทึกจุดที่ค่า mAP สูงสุดอัตโนมัติ)
 
 #### Interpretation:
 - **Precision (0.95)**: Of all PPE detections made by the model, 95% are accurate. This indicates the model has excellent reliability in confirming actual PPE when it flags a detection.
