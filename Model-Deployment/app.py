@@ -521,7 +521,7 @@ def api_slideshow_detect(dataset_type, filename):
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, agnostic_nms=True)
+        results = model(img, classes=ppe_ids, imgsz=1024, agnostic_nms=True) if ppe_ids else model(img, imgsz=1024, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
@@ -592,7 +592,7 @@ def api_slideshow_upload():
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, agnostic_nms=True)
+        results = model(img, classes=ppe_ids, imgsz=1024, agnostic_nms=True) if ppe_ids else model(img, imgsz=1024, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
