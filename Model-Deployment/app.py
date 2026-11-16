@@ -131,16 +131,29 @@ def verify_cap_on_crop(img, bbox):
         pass
     return False, 0.0
 
-def get_ppe_class_ids(model_inst):
-    """Filter class IDs to focus STRICTLY on worker PPE attire & person, ignoring vehicles & machinery"""
+def get_ppe_class_ids(model_inst, include_mask=None):
+    """Filter class IDs to focus STRICTLY on worker PPE attire & person, ignoring vehicles & machinery.
+    Mask & NO-Mask are excluded by default because masks are not standard construction PPE,
+    unless explicitly enabled in Settings ('mask': True).
+    """
     if not model_inst or not hasattr(model_inst, 'names'):
         return None
+
+    global current_settings
+    if include_mask is None:
+        include_mask = current_settings.get('required_ppe', {}).get('mask', False) if current_settings else False
+
     excluded = ['vehicle', 'machinery', 'excavator', 'ladder', 'truck', 'sedan', 'van', 'bus', 'semi', 'trailer', 'loader', 'hydrant', 'suv', 'cone']
-    allowed = ['hardhat', 'vest', 'mask', 'person', 'glove', 'cap']
+    allowed = ['hardhat', 'vest', 'person', 'glove', 'cap']
+    if include_mask:
+        allowed.append('mask')
+
     target_ids = []
     for cid, name in model_inst.names.items():
         n = name.lower()
         if any(ex in n for ex in excluded):
+            continue
+        if not include_mask and 'mask' in n:
             continue
         if any(al in n for al in allowed):
             target_ids.append(cid)
@@ -601,7 +614,7 @@ def api_slideshow_detect(dataset_type, filename):
             detections.append(det_item)
             if is_neg:
                 violations.append(name)
-            elif any(k in name.lower() for k in ['hardhat', 'safety vest', 'vest', 'mask']):
+            elif any(k in name.lower() for k in ['hardhat', 'safety vest', 'vest']) or (name.lower() == 'mask' and current_settings.get('required_ppe', {}).get('mask', False)):
                 compliances.append(name)
 
         status = 'VIOLATION' if violations else ('COMPLIANT' if compliances else 'SCENE_ONLY')
@@ -690,7 +703,7 @@ def api_slideshow_upload():
             detections.append(det_item)
             if is_neg:
                 violations.append(name)
-            elif any(k in name.lower() for k in ['hardhat', 'safety vest', 'vest', 'mask']):
+            elif any(k in name.lower() for k in ['hardhat', 'safety vest', 'vest']) or (name.lower() == 'mask' and current_settings.get('required_ppe', {}).get('mask', False)):
                 compliances.append(name)
 
         status = 'VIOLATION' if violations else ('COMPLIANT' if compliances else 'SCENE_ONLY')
