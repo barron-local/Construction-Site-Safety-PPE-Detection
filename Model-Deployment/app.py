@@ -99,7 +99,7 @@ def get_ppe_class_ids(model_inst):
     if not model_inst or not hasattr(model_inst, 'names'):
         return None
     excluded = ['vehicle', 'machinery', 'excavator', 'ladder', 'truck', 'sedan', 'van', 'bus', 'semi', 'trailer', 'loader', 'hydrant', 'suv', 'cone']
-    allowed = ['hardhat', 'vest', 'mask', 'person', 'glove']
+    allowed = ['hardhat', 'vest', 'mask', 'person', 'glove', 'cap']
     target_ids = []
     for cid, name in model_inst.names.items():
         n = name.lower()
@@ -134,7 +134,7 @@ def generate_frames(clean=False):
             
             frame_count += 1
             ppe_ids = get_ppe_class_ids(model)
-            results = model(frame, classes=ppe_ids) if ppe_ids else model(frame)
+            results = model(frame, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(frame, agnostic_nms=True)
             
             all_detections = []
             for result in results:
@@ -521,7 +521,7 @@ def api_slideshow_detect(dataset_type, filename):
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, classes=ppe_ids) if ppe_ids else model(img)
+        results = model(img, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
@@ -539,7 +539,7 @@ def api_slideshow_detect(dataset_type, filename):
             cls_id = int(b.cls[0])
             name = model.names[cls_id]
             conf = float(b.conf[0])
-            is_neg = name.lower().startswith(('no-', 'no ', 'no_'))
+            is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
             bbox = [round(float(v), 1) for v in b.xyxy[0].tolist()]
             detections.append({
                 'id': idx,
@@ -592,7 +592,7 @@ def api_slideshow_upload():
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, classes=ppe_ids) if ppe_ids else model(img)
+        results = model(img, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
@@ -610,7 +610,7 @@ def api_slideshow_upload():
             cls_id = int(b.cls[0])
             name = model.names[cls_id]
             conf = float(b.conf[0])
-            is_neg = name.lower().startswith(('no-', 'no ', 'no_'))
+            is_neg = name.lower().startswith(('no-', 'no ', 'no_')) or name.lower() in ['cap', 'caps', 'casual-hat']
             bbox = [round(float(v), 1) for v in b.xyxy[0].tolist()]
             detections.append({
                 'id': idx,
