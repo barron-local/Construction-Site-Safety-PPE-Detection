@@ -12,8 +12,8 @@ ORDER = ['helmet', 'vest', 'mask']
 # ปรับค่าได้ที่นี่ หรือใส่ใน settings.json เป็น kiosk_<ชื่อ> เช่น kiosk_check_seconds
 DEFAULTS = dict(
     check_seconds=4.0,       # เวลาตรวจต่อรอบ
-    pass_hold=3.0,           # แสดง "ผ่าน" อย่างน้อยกี่วินาที
-    fail_hold=4.0,           # แสดง "ไม่ผ่าน" กี่วินาที แล้วตรวจใหม่ถ้ายังยืนอยู่
+    pass_hold=4.0,           # แสดง "ผ่าน" 4 วินาที แล้วกลับสู่หน้าพร้อมตรวจ
+    fail_hold=4.0,           # แสดง "ไม่ผ่าน" 4 วินาที แล้วกลับสู่หน้าพร้อมตรวจ
     leave_seconds=2.0,       # ไม่เห็นคนกี่วินาทีถึงกลับไปรอคนถัดไป
     enter_seconds=0.6,       # ต้องเห็นคนต่อเนื่องกี่วินาทีถึงเริ่มตรวจ
     lost_grace=1.0,          # คนหายจากภาพชั่วคราวได้กี่วินาที
@@ -38,19 +38,36 @@ def classify(name):
 class KioskSession:
     def __init__(self):
         self.lock = threading.RLock()
+        self.qr_enabled = False
         self.reset()
 
     def reset(self):
         with self.lock:
             self.state = 'idle'
+            self.qr_enabled = False
             self.since = time.time()
             self.last_seen = 0.0
             self.present_since = None
             self.hint = None
             self.result = {}
             self.missing = []
+            self.invalid_employee = False
             self._clear_tally()
             self.snap = self._snapshot(time.time(), [], DEFAULTS)
+
+    def enable_qr(self):
+        """เปิดรับการสแกน QR Code (เรียกเมื่อเข้าสู่หน้า 'ระบุตัวตน')"""
+        with self.lock:
+            self.qr_enabled = True
+
+    def disable_qr(self):
+        """ปิดรับการสแกน QR Code"""
+        with self.lock:
+            self.qr_enabled = False
+
+    def is_qr_enabled(self):
+        with self.lock:
+            return self.qr_enabled
 
     def trigger_check(self):
         """ผู้ใช้กดปุ่ม 'เริ่มตรวจ' หรือกดยืนยันบัตรพนักงาน"""
@@ -73,6 +90,7 @@ class KioskSession:
         self.since = now
         if state in ('idle', 'checking'):
             self.result, self.missing = {}, []
+            self.invalid_employee = False
         if state == 'idle':
             self._clear_tally()
 
@@ -122,6 +140,7 @@ class KioskSession:
     def _finish(self, required, cfg, now, is_valid_employee=True):
         self.result = {i: ('ok' if self._worn(i, cfg) else 'missing') for i in required}
         self.missing = [i for i, v in self.result.items() if v == 'missing']
+        self.invalid_employee = not is_valid_employee
         # ถ้าไม่มีรหัสพนักงานที่ถูกต้องในระบบ ให้ผลลัพธ์เป็น fail (ไม่ผ่าน) เสมอ
         if not is_valid_employee:
             self._go('fail', now)
@@ -166,7 +185,7 @@ class KioskSession:
                     elif elapsed >= 2 * cfg['check_seconds']:
                         self._go('idle', now)
             elif self.state == 'pass':
-                if now - self.since >= cfg['pass_hold'] and now - self.last_seen >= cfg['leave_seconds']:
+                if now - self.since >= cfg['pass_hold']:
                     self._go('idle', now)
             elif self.state == 'fail':
                 if now - self.since >= cfg['fail_hold']:
@@ -190,6 +209,7 @@ class KioskSession:
             'required': required,
             'items': items,
             'missing': list(self.missing),
+            'invalid_employee': getattr(self, 'invalid_employee', False),
             'hint': self.hint,
             'updated_at': time.time(),
         }

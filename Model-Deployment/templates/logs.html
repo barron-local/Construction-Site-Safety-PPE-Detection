@@ -27,10 +27,159 @@
   .badge.none { border: 1px solid var(--muted); color: var(--muted); }
   textarea { width: 100%; min-height: 6rem; margin-bottom: .6rem; padding: .5rem; font: inherit; border: 1px solid var(--line); border-radius: 8px; }
   button { padding: .45rem 1rem; font: inherit; color: #fff; background: var(--ink); border: 0; border-radius: 8px; cursor: pointer; }
-  button.link { padding: 0 .4rem; color: var(--red); background: none; text-decoration: underline; }
+  button.link { padding: 0 .4rem; background: none; text-decoration: underline; cursor: pointer; border: 0; font: inherit; }
+  button.link.del { color: var(--red); }
+  button.link.qr { color: #1a73e8; font-weight: 600; }
   a:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid #1a73e8; outline-offset: 2px; }
   .muted { color: var(--muted); font-size: .9rem; }
   @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } main, header { padding-left: 1rem; padding-right: 1rem; } }
+
+  /* QR Modal Dialog */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .modal-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .modal-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.75rem 2rem;
+    max-width: 360px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    position: relative;
+    transform: scale(0.92);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .modal-backdrop.active .modal-box {
+    transform: scale(1);
+  }
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: #f1f5f9;
+    color: #475569;
+    border: 0;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+  .modal-close:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+  .modal-title {
+    margin: 0 0 .35rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .modal-emp {
+    font-size: .95rem;
+    color: var(--muted);
+    margin-bottom: 1.25rem;
+  }
+  .modal-emp b {
+    color: var(--ink);
+  }
+  .modal-qr-wrap {
+    background: #fff;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: .85rem;
+    display: inline-block;
+    margin-bottom: 1.25rem;
+  }
+  .modal-qr-wrap img {
+    display: block;
+    width: 220px;
+    height: 220px;
+    border-radius: 6px;
+    image-rendering: pixelated;
+  }
+  .modal-actions {
+    display: flex;
+    gap: .75rem;
+    justify-content: center;
+  }
+  .modal-btn {
+    padding: .5rem 1.1rem;
+    font-size: .95rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+  }
+  .modal-btn.primary {
+    background: #2563eb;
+    color: #fff;
+    border: 0;
+  }
+  .modal-btn.primary:hover {
+    background: #1d4ed8;
+  }
+  .modal-btn.secondary {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+  }
+  .modal-btn.secondary:hover {
+    background: #e2e8f0;
+  }
+  .modal-box.wide {
+    max-width: 860px;
+    width: 95%;
+    padding: 1.5rem;
+  }
+  .modal-img-wrap {
+    background: #0f172a;
+    border-radius: 10px;
+    padding: .5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  .modal-img-wrap img {
+    max-width: 100%;
+    max-height: 68vh;
+    border-radius: 6px;
+    display: block;
+    object-fit: contain;
+  }
+  .log-thumb {
+    display: block;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .log-thumb:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
 </style>
 </head>
 <body>
@@ -66,7 +215,6 @@
 
   <section>
     <h2>รายชื่อพนักงาน</h2>
-    <p class="muted">หนึ่งบรรทัดต่อคน รูปแบบ รหัส,ชื่อ (รหัสใช้ตัวอักษรอังกฤษ ตัวเลข - _ ได้ ไม่เกิน 32 ตัว) รหัสเดิมจะถูกอัปเดตชื่อ</p>
     <textarea id="bulk" aria-label="รายชื่อพนักงาน" placeholder="1001,สมชาย ใจดี"></textarea>
     <button id="add" type="button">เพิ่มหรืออัปเดต</button> <span class="muted" id="msg"></span>
     <table>
@@ -75,6 +223,36 @@
     </table>
   </section>
 </main>
+
+<div class="modal-backdrop" id="qrModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose" type="button" aria-label="ปิด">✕</button>
+    <h3 class="modal-title" id="modalTitle">บัตร QR Code พนักงาน</h3>
+    <div class="modal-emp" id="modalEmp">-</div>
+    <div class="modal-qr-wrap">
+      <img id="modalQrImg" src="" alt="QR Code พนักงาน">
+    </div>
+    <div class="modal-actions">
+      <a class="modal-btn primary" id="modalDownload" href="" download="" target="_blank">ดาวน์โหลด QR</a>
+      <button class="modal-btn secondary" id="modalCloseBtn" type="button">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="imgModal" role="dialog" aria-modal="true" aria-labelledby="imgModalTitle">
+  <div class="modal-box wide">
+    <button class="modal-close" id="imgModalClose" type="button" aria-label="ปิด">✕</button>
+    <h3 class="modal-title" id="imgModalTitle">ภาพถ่ายตอนตรวจ</h3>
+    <div class="modal-emp" id="imgModalInfo">-</div>
+    <div class="modal-img-wrap">
+      <img id="imgModalSrc" src="" alt="ภาพตอนตรวจ">
+    </div>
+    <div class="modal-actions">
+      <a class="modal-btn primary" id="imgModalDownload" href="" download="" target="_blank">ดาวน์โหลดภาพเต็ม</a>
+      <button class="modal-btn secondary" id="imgModalCloseBtn" type="button">ปิด</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const NAME = { helmet: 'หมวกนิรภัย', vest: 'เสื้อสะท้อนแสง', mask: 'หน้ากาก' };
@@ -102,15 +280,74 @@ async function load() {
     $('today').innerHTML = t.employees.map(e => row([esc(e.code), esc(e.name || '-'), badge(e.status),
       esc(e.time ? e.time.slice(11) : '-'), esc(miss(e.missing))])).join('') || empty(5);
     const pic = x => x.has_image
-      ? '<a href="/api/check_image/' + x.id + '.jpg" target="_blank" rel="noopener"><img src="/api/check_image/' + x.id +
-        '.jpg" alt="ภาพตอนตรวจ รหัส ' + esc(x.code || 'ไม่ทราบ') + '" width="72" loading="lazy" style="display:block;border-radius:4px"></a>' : '-';
+      ? '<img src="/api/check_image/' + x.id + '.jpg" class="log-thumb" data-id="' + x.id + '" data-code="' + esc(x.code || 'ไม่ทราบ') + '" data-name="' + esc(x.name || '-') + '" data-time="' + esc(x.time) + '" data-res="' + esc(x.result) + '" alt="ภาพตอนตรวจ รหัส ' + esc(x.code || 'ไม่ทราบ') + '" width="72" loading="lazy" title="คลิกเพื่อดูภาพขนาดใหญ่">' : '-';
     $('logs').innerHTML = l.map(x => row([esc(x.time), esc(x.code || 'ไม่ทราบ'), esc(x.name || '-'),
       badge(x.result), esc(miss(x.missing)), pic(x)])).join('') || empty(6);
     $('emps').innerHTML = t.employees.map(e => row([esc(e.code), esc(e.name || '-'),
-      '<a href="/qr/' + encodeURIComponent(e.code) + '.png" target="_blank" rel="noopener">เปิด QR</a>',
-      '<button class="link" type="button" data-del="' + esc(e.code) + '">ลบ</button>'])).join('') || empty(4);
+      '<button class="link qr" type="button" data-qr="' + esc(e.code) + '" data-name="' + esc(e.name || '') + '">เปิด QR</button>',
+      '<button class="link del" type="button" data-del="' + esc(e.code) + '">ลบ</button>'])).join('') || empty(4);
   } catch (e) { /* ลองใหม่รอบถัดไป */ }
 }
+
+function openQrModal(code, name) {
+  $('modalEmp').innerHTML = 'รหัส: <b>' + esc(code) + '</b>' + (name ? ' · <b>' + esc(name) + '</b>' : '');
+  const url = '/qr/' + encodeURIComponent(code) + '.png';
+  $('modalQrImg').src = url;
+  $('modalDownload').href = url;
+  $('modalDownload').download = 'qr_' + code + '.png';
+  $('qrModal').classList.add('active');
+}
+
+function closeQrModal() {
+  $('qrModal').classList.remove('active');
+  $('modalQrImg').src = '';
+}
+
+$('modalClose').addEventListener('click', closeQrModal);
+$('modalCloseBtn').addEventListener('click', closeQrModal);
+$('qrModal').addEventListener('click', e => {
+  if (e.target === $('qrModal')) closeQrModal();
+});
+
+function openImgModal(d) {
+  const code = d.code || 'ไม่ทราบ';
+  const name = d.name && d.name !== '-' ? d.name : '';
+  const time = d.time || '';
+  const res = d.res || '';
+  const resBadge = res === 'pass' ? '<span class="badge pass">ผ่าน</span>' : res === 'fail' ? '<span class="badge fail">ไม่ผ่าน</span>' : '';
+  
+  $('imgModalInfo').innerHTML = 'เวลา: <b>' + esc(time) + '</b> · รหัส: <b>' + esc(code) + '</b>' + (name ? ' (' + esc(name) + ')' : '') + ' · ผลตรวจ: ' + resBadge;
+  const url = '/api/check_image/' + encodeURIComponent(d.id) + '.jpg';
+  $('imgModalSrc').src = url;
+  $('imgModalDownload').href = url;
+  $('imgModalDownload').download = 'inspection_' + d.id + '.jpg';
+  $('imgModal').classList.add('active');
+}
+
+function closeImgModal() {
+  $('imgModal').classList.remove('active');
+  $('imgModalSrc').src = '';
+}
+
+$('imgModalClose').addEventListener('click', closeImgModal);
+$('imgModalCloseBtn').addEventListener('click', closeImgModal);
+$('imgModal').addEventListener('click', e => {
+  if (e.target === $('imgModal')) closeImgModal();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeQrModal();
+    closeImgModal();
+  }
+});
+
+$('logs').addEventListener('click', e => {
+  const thumb = e.target.closest('.log-thumb');
+  if (thumb) {
+    openImgModal(thumb.dataset);
+  }
+});
 
 $('add').addEventListener('click', async () => {
   const r = await fetch('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -122,6 +359,11 @@ $('add').addEventListener('click', async () => {
 });
 
 $('emps').addEventListener('click', async e => {
+  const qrCode = e.target.dataset.qr;
+  if (qrCode) {
+    openQrModal(qrCode, e.target.dataset.name || '');
+    return;
+  }
   const code = e.target.dataset.del;
   if (code && confirm('ลบรหัส ' + code + ' ออกจากรายชื่อ? (ประวัติเดิมยังอยู่)')) {
     await fetch('/api/employees/' + encodeURIComponent(code), { method: 'DELETE' });

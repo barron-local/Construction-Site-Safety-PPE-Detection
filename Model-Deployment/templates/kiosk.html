@@ -111,6 +111,7 @@ let uiStep = 'ready';
 let countdownVal = 3;
 let countdownTimer = null;
 let lastServerState = 'idle';
+let currentEmployee = null;
 
 async function startFeed() {
   try { await fetch('/start_stream', { method: 'POST' }); } catch (e) {}
@@ -141,10 +142,13 @@ function startCountdown() {
 function handleActionClick() {
   if (uiStep === 'ready') {
     uiStep = 'badge';
+    currentEmployee = null;
+    try { fetch('/api/kiosk_start_badge', { method: 'POST' }); } catch (e) {}
     $('emp').focus();
     if (window.lastKioskState) render(window.lastKioskState);
   } else if (uiStep === 'badge') {
-    if (window.lastKioskState && window.lastKioskState.employee && window.lastKioskState.employee.code) {
+    const activeEmp = (window.lastKioskState && window.lastKioskState.employee) || currentEmployee;
+    if (activeEmp && activeEmp.code) {
       startCountdown();
     } else {
       $('emp').focus();
@@ -170,6 +174,7 @@ function render(s) {
     if (lastServerState === 'pass' || lastServerState === 'fail') {
       // Finished a check cycle, return to ready step
       uiStep = 'ready';
+      currentEmployee = null;
     }
   }
   lastServerState = s.state;
@@ -180,7 +185,11 @@ function render(s) {
 
   const req = list(s.required);
   let verdict, detail, whoText;
-  const e = s.employee;
+  const e = s.employee || currentEmployee;
+  let empDisplay = '';
+  if (e && e.code) {
+    empDisplay = e.name ? (e.name + ' (รหัส ' + e.code + ')') : ('รหัส ' + e.code);
+  }
   const btn = $('actionBtn');
 
   if (s.hint === 'multiple') {
@@ -196,28 +205,34 @@ function render(s) {
   } else if (uiStep === 'badge') {
     verdict = 'ระบุตัวตน';
     detail = 'แสดงบัตร QR Code หรือพิมพ์รหัสพนักงานด้านล่าง แล้วกดยืนยัน';
-    whoText = e ? ('พนักงาน: ' + e.code + (e.name ? ' · ' + e.name : '')) : 'แสดงบัตรพนักงานให้กล้องเห็น หรือพิมพ์รหัสด้านล่าง';
+    whoText = empDisplay ? ('พนักงาน: ' + empDisplay) : 'แสดงบัตรพนักงานให้กล้องเห็น หรือพิมพ์รหัสด้านล่าง';
     btn.hidden = false;
-    btn.textContent = e ? 'ยืนยันและเริ่มตรวจ' : 'ยืนยันรหัสพนักงาน';
+    btn.textContent = empDisplay ? 'ยืนยันและเริ่มตรวจ' : 'ยืนยันรหัสพนักงาน';
   } else if (uiStep === 'countdown') {
     verdict = countdownVal > 0 ? countdownVal : 'เริ่มตรวจ!';
     detail = 'เตรียมตัวให้พร้อม ระบบกำลังจะเริ่มตรวจ PPE';
-    whoText = e ? ('พนักงาน: ' + e.code + (e.name ? ' · ' + e.name : '')) : 'กำลังเริ่มตรวจ...';
+    whoText = empDisplay ? ('พนักงาน: ' + empDisplay) : 'กำลังเริ่มตรวจ...';
     btn.hidden = true;
   } else if (s.state === 'checking') {
     verdict = 'กำลังตรวจ';
     detail = 'ยืนนิ่ง ๆ อีก ' + s.seconds_left + ' วินาที';
-    whoText = e ? ('พนักงาน: ' + e.code + (e.name ? ' · ' + e.name : '')) : 'กำลังตรวจ PPE...';
+    whoText = empDisplay ? ('พนักงาน: ' + empDisplay) : 'กำลังตรวจ PPE...';
     btn.hidden = true;
   } else if (s.state === 'pass') {
     verdict = 'ผ่าน';
     detail = 'แต่งกายครบ เข้าพื้นที่ได้';
-    whoText = e ? ('รหัส ' + e.code + (e.name ? ' · ' + e.name : '')) : 'ตรวจผ่าน';
+    whoText = empDisplay ? ('พนักงาน: ' + empDisplay) : 'ตรวจผ่าน';
     btn.hidden = true;
   } else if (s.state === 'fail') {
     verdict = 'ไม่ผ่าน';
-    detail = 'ขาด' + list(s.missing) + ' สวมให้ครบ';
-    whoText = e ? ('รหัส ' + e.code + (e.name ? ' · ' + e.name : '')) : 'ตรวจไม่ผ่าน';
+    if (s.invalid_employee) {
+      detail = 'รหัสพนักงานไม่ถูกต้อง หรือไม่พบในระบบ';
+    } else if (s.missing && s.missing.length > 0) {
+      detail = 'ขาด' + list(s.missing) + ' สวมให้ครบ';
+    } else {
+      detail = 'ตรวจไม่ผ่าน กรุณาตรวจสอบการแต่งกาย';
+    }
+    whoText = empDisplay ? ('พนักงาน: ' + empDisplay) : 'ตรวจไม่ผ่าน';
     btn.hidden = true;
   } else {
     verdict = s.hint === 'too_far' ? 'เข้าใกล้อีกนิด' : 'ยืนหน้ากล้อง';
@@ -250,6 +265,9 @@ let lastRestart = 0;
 async function poll() {
   try {
     const s = await (await fetch('/api/kiosk_state')).json();
+    if (s.employee && s.employee.code) {
+      currentEmployee = s.employee;
+    }
     // If QR code was scanned automatically on camera while in badge step:
     if (uiStep === 'badge' && s.employee && s.employee.code) {
       startCountdown();
@@ -271,6 +289,9 @@ async function sendId() {
   $('emp').value = '';
   $('emp').placeholder = r.ok ? '' : data.message;
   if (r.ok) {
+    if (data.employee) {
+      currentEmployee = data.employee;
+    }
     startCountdown();
   }
 }
@@ -280,6 +301,7 @@ $('emp').focus();
 
 $('feed').addEventListener('error', () => setTimeout(startFeed, 2000));
 $('fs').addEventListener('click', () => document.documentElement.requestFullscreen && document.documentElement.requestFullscreen());
+fetch('/api/kiosk_reset', { method: 'POST' }).catch(() => {});
 startFeed();
 setInterval(poll, 250);
 poll();

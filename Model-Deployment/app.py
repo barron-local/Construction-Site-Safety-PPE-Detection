@@ -318,9 +318,11 @@ def generate_frames(clean=False):
             stabilized_dets, summary = ppe_stabilizer.update(all_detections, frame.shape, current_settings.get('required_ppe'), mode=det_mode)
             
             emp_now = recorder.current()
-            is_valid_emp = bool(emp_now and checklog.employee_exists(emp_now['code']))
+            # ตรวจสอบรหัสพนักงาน: หากระบุรหัสมา จะต้องมีอยู่จริงในฐานข้อมูลเท่านั้น
+            is_valid_emp = checklog.employee_exists(emp_now['code']) if emp_now else True
             kiosk_state = kiosk.update(stabilized_dets, frame.shape, current_settings, is_valid_employee=is_valid_emp)
-            if frame_count % 6 == 0 and kiosk_state['state'] in ('idle', 'checking'):
+            # สแกน QR Code เฉพาะเมื่ออยู่ในขั้นตอน 'ระบุตัวตน' (kiosk.is_qr_enabled()) เท่านั้น
+            if frame_count % 6 == 0 and kiosk.is_qr_enabled():
                 try:
                     # Downscale 2x for ultra-fast QR decoding without dropping accuracy
                     qr_small = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_NEAREST)
@@ -328,8 +330,8 @@ def generate_frames(clean=False):
                 except cv2.error:
                     code = ''
                 if code and checklog.employee_exists(code):
-                    if recorder.set_code(code):
-                        kiosk.trigger_check()  # เริ่มนับเวลาตรวจใหม่หลังแสดงบัตรจริงในระบบ
+                    recorder.set_code(code)
+                    kiosk.disable_qr()  # สแกนติดแล้ว ปิดสแกนทันที เพื่อให้ Frontend เริ่มนับถอยหลัง 3.. 2.. 1..
             logged = recorder.observe(kiosk_state)
             hardware.update(kiosk_state)
 
@@ -425,8 +427,7 @@ def kiosk_page():
 def kiosk_state_api():
     state = kiosk.get_state()
     state['hardware'] = hardware.status()
-    # หากอยู่ในสถานะ idle (ยังไม่ได้เริ่มตรวจ) ไม่ต้องคืนรหัสพนักงานค้างเดิม
-    state['employee'] = recorder.current() if state['state'] != 'idle' else None
+    state['employee'] = recorder.current()
     return jsonify(state)
 
 @app.route('/logs')
@@ -455,10 +456,26 @@ def api_employee_delete(code):
     checklog.delete_employee(code)
     return jsonify({'status': 'success'})
 
+@app.route('/api/kiosk_start_badge', methods=['POST'])
+def api_kiosk_start_badge():
+    """ผู้ใช้กดปุ่ม 'เริ่มตรวจ' เพื่อเข้าสู่หน้า 'ระบุตัวตน' -> เปิดสแกน QR Code"""
+    recorder.clear()
+    kiosk.reset()
+    kiosk.enable_qr()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/kiosk_reset', methods=['POST'])
+def api_kiosk_reset():
+    """Reset session and clear previous employee code (on page load)"""
+    recorder.clear()
+    kiosk.reset()
+    kiosk.disable_qr()
+    return jsonify({'status': 'success'})
+
 @app.route('/api/kiosk_trigger', methods=['POST'])
 def api_kiosk_trigger():
-    """Trigger checking session from Start Check button"""
-    recorder.clear()  # เริ่มรอบใหม่ ล้างรหัสที่อาจค้างจากรอบก่อนหน้า
+    """Trigger checking session after countdown completes or from action button"""
+    kiosk.disable_qr()
     ok = kiosk.trigger_check()
     return jsonify({'status': 'success' if ok else 'ignored'})
 
@@ -474,7 +491,7 @@ def api_kiosk_id():
     if state in ('pass', 'fail'):
         return jsonify({'status': 'error', 'message': 'กำลังแสดงผล รอสักครู่'}), 409
     recorder.set_code(code)
-    kiosk.trigger_check()
+    kiosk.disable_qr()
     return jsonify({'status': 'success', 'employee': recorder.current()})
 
 @app.route('/qr/<code>.png')
