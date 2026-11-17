@@ -12,6 +12,7 @@ from detection_logic import InstanceDetector, ComplianceChecker, SnapshotManager
 from database import Database
 from kiosk_logic import KioskSession
 from hardware import HardwareLink
+from ppe_stabilizer import PPETemporalStabilizer, box_intersection_ratio
 import checklog
 import json
 
@@ -32,6 +33,7 @@ kiosk = KioskSession()
 hardware = HardwareLink()
 checklog.init()
 recorder = checklog.CheckRecorder()
+ppe_stabilizer = PPETemporalStabilizer(iou_match_thresh=0.35, max_grace_frames=5, alpha=0.72)
 
 SETTINGS_FILE = 'settings.json'
 DEFAULT_SETTINGS = {
@@ -70,7 +72,7 @@ current_settings = load_settings()
 cap_verifier = None
 
 def load_model():
-    """Load Master 200-Epoch Super PPE Model + Dedicated Cap Verification Model"""
+    """Load Master 200-Epoch Super PPE Model + Dedicated Cap Verifier"""
     global model, cap_verifier
     super_model_path = os.path.abspath(os.path.join(
         os.path.dirname(__file__),
@@ -81,63 +83,73 @@ def load_model():
         '../Model-Training/Outputs/runs/detect/yolov8s_ppe_model_with_cap_class/weights/best.pt'
     ))
     
-    candidates = [
-        super_model_path,
-        os.path.abspath(os.path.join(os.path.dirname(__file__), '../Model-Training/Outputs/runs/detect/yolov8s_ppe_finetuned_super/weights/best.pt'))
-    ]
-    chosen = None
-    for p in candidates:
-        if os.path.exists(p):
-            chosen = p
-            break
-
-    if chosen:
-        print(f"[+] [EXCLUSIVE] Loaded Master PPE Model: {chosen}")
-        model = YOLO(chosen)
+    if os.path.exists(super_model_path):
+        print(f"[+] [EXCLUSIVE] Loaded Master PPE Model: {super_model_path}")
+        model = YOLO(super_model_path)
     else:
         raise FileNotFoundError(f"[-] Critical: PPE model not found at {super_model_path}")
 
     if os.path.exists(cap_model_path):
-        print(f"[+] [EXCLUSIVE] Loaded Cap Verification Model: {cap_model_path}")
+        print(f"[+] [EXCLUSIVE] Loaded Dedicated Cap Verifier: {cap_model_path}")
         cap_verifier = YOLO(cap_model_path)
-    else:
-        print(f"[!] Warning: Cap verification model not found at {cap_model_path}")
 
-def verify_cap_on_crop(img, bbox):
-    """If a Hardhat is candidate-detected, verify whether it is actually a baseball cap (ผ้า/หมวกแก๊ป)
-    Uses anatomical face/head context padding (45%) and competitive Cap vs Hardhat score arbitration.
+def is_headwear_a_cap(img, head_box, current_class='Hardhat'):
+    """
+    Checks if a detected headwear box (Hardhat or NO-Hardhat) is actually a baseball cap (หมวกแก๊ป).
+    Uses 30% spatial padding, CLAHE contrast enhancement for dark/black caps, and competitive arbitration.
+    Returns (is_cap: bool, confidence: float)
     """
     global cap_verifier
-    if cap_verifier is None:
+    if cap_verifier is None or img is None:
         return False, 0.0
     try:
-        x1, y1, x2, y2 = [int(v) for v in bbox]
         h, w = img.shape[:2]
-        # Use 45% padding so YOLO retains facial/forehead context rather than an isolated dome
-        pad_w = int((x2 - x1) * 0.45)
-        pad_h = int((y2 - y1) * 0.45)
+        x1, y1, x2, y2 = [int(v) for v in head_box]
+        bw = max(1, x2 - x1)
+        bh = max(1, y2 - y1)
+        # Ensure minimum absolute padding so distant/small headwear captures the full visor & crown
+        pad_w = max(12, int(bw * 0.30))
+        pad_h = max(12, int(bh * 0.30))
         cx1 = max(0, x1 - pad_w)
         cy1 = max(0, y1 - pad_h)
         cx2 = min(w, x2 + pad_w)
         cy2 = min(h, y2 + pad_h)
         crop = img[cy1:cy2, cx1:cx2]
-        if crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
+        if crop.size == 0 or crop.shape[0] < 15 or crop.shape[1] < 15:
             return False, 0.0
-        c_res = cap_verifier.predict(crop, conf=0.20, verbose=False)[0]
-        max_cap = 0.0
-        max_hardhat = 0.0
-        for cb in c_res.boxes:
-            cls_name = cap_verifier.names[int(cb.cls[0])].lower()
-            conf = float(cb.conf[0])
-            if cls_name == 'cap':
-                max_cap = max(max_cap, conf)
-            elif cls_name == 'hardhat':
-                max_hardhat = max(max_hardhat, conf)
-        # Cap is confirmed only if Cap confidence is prominent AND dominates over genuine Hardhat confidence
-        if max_cap >= 0.70 and max_cap > max_hardhat:
-            return True, max_cap
+
+        # Contrast enhancement with CLAHE on L-channel:
+        # Crucial for black/dark baseball caps which lose edge contrast & texture when distant or underexposed
+        lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        lab[:, :, 0] = clahe.apply(lab[:, :, 0])
+        enhanced_crop = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+        r = cap_verifier(enhanced_crop, imgsz=224, conf=0.15, verbose=False)[0]
+        caps = [float(b.conf[0]) for b in r.boxes if cap_verifier.names[int(b.cls[0])].lower() == 'cap']
+        hardhats = [float(b.conf[0]) for b in r.boxes if cap_verifier.names[int(b.cls[0])].lower() == 'hardhat']
+        no_hardhats = [float(b.conf[0]) for b in r.boxes if cap_verifier.names[int(b.cls[0])].lower() == 'no-hardhat']
+        max_c = max(caps) if caps else 0.0
+        max_h = max(hardhats) if hardhats else 0.0
+        max_no_h = max(no_hardhats) if no_hardhats else 0.0
+        
+        # Requirements for declaring a Cap:
+        # 1. Cap score must be higher than hardhat score (real hardhats score 0.90+)
+        # 2. Cap score must be higher than NO-Hardhat score (bare heads score 0.85+)
+        # 3. Cap score must meet sensitivity threshold (>= 0.62 for Hardhat, >= 0.65 for NO-Hardhat)
+        min_thresh = 0.62 if current_class == 'Hardhat' else 0.65
+        if max_c >= min_thresh and max_c > max_h and max_c > max_no_h:
+            return True, max_c
     except Exception:
         pass
+    return False, 0.0
+
+def detect_cap_on_person(img, person_bbox):
+    """Fallback cap detection on person upper body"""
+    return False, 0.0, None
+
+def verify_cap_on_crop(img, bbox):
+    """Check crop for cap verification"""
     return False, 0.0
 
 def get_ppe_class_ids(model_inst, include_mask=None):
@@ -205,22 +217,24 @@ def verify_person_ppe_compliance(detections, img_shape):
         torso = [px1, py1 + 0.20 * ph, px2, py1 + 0.85 * ph]
         head = [px1, py1, px2, py1 + 0.40 * ph]
 
-        # Check Vest on Torso
-        has_vest = any(
-            box_intersection(torso, v['bbox']) > 0.05 * max(1.0, (v['bbox'][2]-v['bbox'][0]) * (v['bbox'][3]-v['bbox'][1]))
-            for v in vests
-        )
-        if not has_vest:
-            inferred.append({
-                'id': next_id,
-                'class': 'NO-Safety Vest',
-                'confidence': round(p['confidence'] * 0.92, 1),
-                'is_violation': True,
-                'is_inferred': True,
-                'note': f'ไม่พบเสื้อกั๊กสะท้อนแสงบนลำตัวคนงาน #{idx+1}',
-                'bbox': [round(px1 + 0.05*pw, 1), round(py1 + 0.22*ph, 1), round(px2 - 0.05*pw, 1), round(py1 + 0.72*ph, 1)]
-            })
-            next_id += 1
+        # Check Vest on Torso (Only if torso is actually visible in the frame!)
+        has_visible_torso = (ph >= 1.35 * pw) and (ph >= 150)
+        if has_visible_torso:
+            has_vest = any(
+                box_intersection(torso, v['bbox']) > 0.05 * max(1.0, (v['bbox'][2]-v['bbox'][0]) * (v['bbox'][3]-v['bbox'][1]))
+                for v in vests
+            )
+            if not has_vest:
+                inferred.append({
+                    'id': next_id,
+                    'class': 'NO-Safety Vest',
+                    'confidence': round(p['confidence'] * 0.92, 1),
+                    'is_violation': True,
+                    'is_inferred': True,
+                    'note': f'ไม่พบเสื้อกั๊กสะท้อนแสงบนลำตัวคนงาน #{idx+1}',
+                    'bbox': [round(px1 + 0.05*pw, 1), round(py1 + 0.22*ph, 1), round(px2 - 0.05*pw, 1), round(py1 + 0.72*ph, 1)]
+                })
+                next_id += 1
 
         # Check Hardhat on Head
         has_helmet = any(
@@ -266,9 +280,10 @@ def generate_frames(clean=False):
             
             frame_count += 1
             ppe_ids = get_ppe_class_ids(model)
-            results = model(frame, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(frame, agnostic_nms=True)
+            results = model(frame, conf=0.20, iou=0.45, imgsz=640, classes=ppe_ids, agnostic_nms=True, verbose=False) if ppe_ids else model(frame, conf=0.20, iou=0.45, imgsz=640, agnostic_nms=True, verbose=False)
             
             all_detections = []
+            person_boxes = []
             for result in results:
                 boxes = result.boxes
                 for box in boxes:
@@ -276,33 +291,52 @@ def generate_frames(clean=False):
                     conf = float(box.conf[0])
                     cls = int(box.cls[0])
                     class_name = model.names[cls]
-                    if class_name == 'Hardhat':
-                        is_cap, cap_conf = verify_cap_on_crop(frame, [x1, y1, x2, y2])
-                        if is_cap:
-                            class_name = 'NO-Hardhat'
-                            conf = cap_conf
-                    
+                    b_int = [int(x1), int(y1), int(x2), int(y2)]
                     all_detections.append({
                         'class': class_name,
                         'confidence': conf,
-                        'bbox': [int(x1), int(y1), int(x2), int(y2)]
+                        'bbox': b_int
                     })
+                    if class_name.lower() == 'person':
+                        person_boxes.append(b_int)
+
+            # Direct Headwear Cap Verification
+            for det in all_detections:
+                if det['class'] in ['Hardhat', 'NO-Hardhat']:
+                    is_cap, cap_score = is_headwear_a_cap(frame, det['bbox'], current_class=det['class'])
+                    if is_cap:
+                        det['class'] = 'NO-Hardhat'
+                        det['is_cap'] = True
+                        det['is_violation'] = True
+                        det['note'] = 'หมวกแก๊ป (Cap Detected)'
+                        det['confidence'] = max(det['confidence'], cap_score)
+                    else:
+                        det['is_cap'] = False
             
-            kiosk_state = kiosk.update(all_detections, frame.shape, current_settings)
-            if frame_count % 3 == 0 and kiosk_state['state'] in ('idle', 'checking'):
+            # Apply temporal smoothing and anti-flicker stabilization
+            det_mode = current_settings.get('detection_mode', 'single')
+            stabilized_dets, summary = ppe_stabilizer.update(all_detections, frame.shape, current_settings.get('required_ppe'), mode=det_mode)
+            
+            emp_now = recorder.current()
+            is_valid_emp = bool(emp_now and checklog.employee_exists(emp_now['code']))
+            kiosk_state = kiosk.update(stabilized_dets, frame.shape, current_settings, is_valid_employee=is_valid_emp)
+            if frame_count % 6 == 0 and kiosk_state['state'] in ('idle', 'checking'):
                 try:
-                    code, _, _ = qr.detectAndDecode(frame)
+                    # Downscale 2x for ultra-fast QR decoding without dropping accuracy
+                    qr_small = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_NEAREST)
+                    code, _, _ = qr.detectAndDecode(qr_small)
                 except cv2.error:
                     code = ''
-                if code and recorder.set_code(code) and kiosk_state['state'] == 'checking':
-                    kiosk.restart()  # เริ่มนับเวลาตรวจใหม่หลังแสดงบัตร
+                if code and checklog.employee_exists(code):
+                    if recorder.set_code(code):
+                        kiosk.trigger_check()  # เริ่มนับเวลาตรวจใหม่หลังแสดงบัตรจริงในระบบ
             logged = recorder.observe(kiosk_state)
             hardware.update(kiosk_state)
 
-            instance_result = instance_detector.process_detection(all_detections, dev_mode, current_settings)
-            is_compliant = compliance_checker.check_compliance(instance_result, dev_mode)
+            instance_result = instance_detector.process_detection(stabilized_dets, dev_mode, current_settings)
+            is_compliant = summary['is_compliant'] if summary['has_person'] else compliance_checker.check_compliance(instance_result, dev_mode)
             
-            annotated_frame = results[0].plot()
+            annotated_frame = ppe_stabilizer.render(frame, stabilized_dets, summary, show_top_banner=(not clean))
             if logged and logged['result'] == 'pass':  # เก็บภาพตอนตรวจผ่านลงฐานข้อมูล
                 ok_jpg, jpg = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 if ok_jpg:
@@ -391,7 +425,8 @@ def kiosk_page():
 def kiosk_state_api():
     state = kiosk.get_state()
     state['hardware'] = hardware.status()
-    state['employee'] = recorder.current()
+    # หากอยู่ในสถานะ idle (ยังไม่ได้เริ่มตรวจ) ไม่ต้องคืนรหัสพนักงานค้างเดิม
+    state['employee'] = recorder.current() if state['state'] != 'idle' else None
     return jsonify(state)
 
 @app.route('/logs')
@@ -420,17 +455,26 @@ def api_employee_delete(code):
     checklog.delete_employee(code)
     return jsonify({'status': 'success'})
 
+@app.route('/api/kiosk_trigger', methods=['POST'])
+def api_kiosk_trigger():
+    """Trigger checking session from Start Check button"""
+    recorder.clear()  # เริ่มรอบใหม่ ล้างรหัสที่อาจค้างจากรอบก่อนหน้า
+    ok = kiosk.trigger_check()
+    return jsonify({'status': 'success' if ok else 'ignored'})
+
 @app.route('/api/kiosk_id', methods=['POST'])
 def api_kiosk_id():
     """Manual entry or USB barcode scanner (acts as a keyboard)"""
     code = ((request.json or {}).get('code') or '').strip()
     if not checklog.valid_code(code):
-        return jsonify({'status': 'error', 'message': 'รหัสไม่ถูกต้อง'}), 400
+        return jsonify({'status': 'error', 'message': 'รูปแบบรหัสไม่ถูกต้อง'}), 400
+    if not checklog.employee_exists(code):
+        return jsonify({'status': 'error', 'message': 'ไม่พบรหัสพนักงานนี้ในระบบ'}), 404
     state = kiosk.get_state()['state']
     if state in ('pass', 'fail'):
         return jsonify({'status': 'error', 'message': 'กำลังแสดงผล รอสักครู่'}), 409
-    if recorder.set_code(code) and state == 'checking':
-        kiosk.restart()
+    recorder.set_code(code)
+    kiosk.trigger_check()
     return jsonify({'status': 'success', 'employee': recorder.current()})
 
 @app.route('/qr/<code>.png')
@@ -517,9 +561,13 @@ def start_stream():
         with stream_lock:
             if camera is None or not camera.isOpened():
                 camera = cv2.VideoCapture(int(os.environ.get('PPE_CAMERA_INDEX', 0)))
+                camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
                 camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         
         kiosk.reset()
+        recorder.clear()
+        ppe_stabilizer.reset()
         streaming = True
         return jsonify({'status': 'success', 'message': 'Stream started'})
     except Exception as e:
@@ -532,6 +580,7 @@ def stop_stream():
     
     try:
         streaming = False
+        ppe_stabilizer.reset()
         time.sleep(0.3)
         
         with stream_lock:
@@ -658,7 +707,7 @@ def api_slideshow_detect(dataset_type, filename):
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, conf=0.20, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, conf=0.20, agnostic_nms=True)
+        results = model(img, conf=0.20, iou=0.45, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, conf=0.20, iou=0.45, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
@@ -726,7 +775,7 @@ def api_slideshow_detect(dataset_type, filename):
             'inference_time_ms': round(inference_ms, 1),
             'image_width': int(img.shape[1]),
             'image_height': int(img.shape[0]),
-            'model_name': 'YOLOv8s Ensemble (Master 200-Epoch + Cap Verifier)',
+            'model_name': 'YOLOv8s Master 200-Epoch (Stabilized Ensemble)',
             'detections': detections,
             'image_base64': f'data:image/jpeg;base64,{b64_str}',
             'raw_image_base64': f'data:image/jpeg;base64,{raw_b64_str}'
@@ -758,7 +807,7 @@ def api_slideshow_upload():
 
         t0 = time.time()
         ppe_ids = get_ppe_class_ids(model)
-        results = model(img, conf=0.20, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, conf=0.20, agnostic_nms=True)
+        results = model(img, conf=0.20, iou=0.45, classes=ppe_ids, agnostic_nms=True) if ppe_ids else model(img, conf=0.20, iou=0.45, agnostic_nms=True)
         inference_ms = (time.time() - t0) * 1000
 
         plotted_img = results[0].plot(line_width=2)
@@ -826,7 +875,7 @@ def api_slideshow_upload():
             'inference_time_ms': round(inference_ms, 1),
             'image_width': int(img.shape[1]),
             'image_height': int(img.shape[0]),
-            'model_name': 'YOLOv8s Ensemble (Master 200-Epoch + Cap Verifier)',
+            'model_name': 'YOLOv8s Master 200-Epoch (Stabilized Ensemble)',
             'detections': detections,
             'image_base64': f'data:image/jpeg;base64,{b64_str}',
             'raw_image_base64': f'data:image/jpeg;base64,{raw_b64_str}'
@@ -840,6 +889,6 @@ if __name__ == '__main__':
         db.init_db()
         load_model()
         instance_detector.update_settings(current_settings)
-        socketio.run(app, debug=True, host='localhost', port=3333, allow_unsafe_werkzeug=True)
+        socketio.run(app, debug=False, use_reloader=False, host='localhost', port=3333, allow_unsafe_werkzeug=True)
     except Exception as e:
         print(f"Fatal error starting app: {e}")

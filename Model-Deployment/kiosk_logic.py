@@ -52,11 +52,15 @@ class KioskSession:
             self._clear_tally()
             self.snap = self._snapshot(time.time(), [], DEFAULTS)
 
-    def restart(self):
-        """เริ่มนับเวลาตรวจใหม่ (ใช้เมื่อเพิ่งอ่านรหัสพนักงาน)"""
+    def trigger_check(self):
+        """ผู้ใช้กดปุ่ม 'เริ่มตรวจ' หรือกดยืนยันบัตรพนักงาน"""
         with self.lock:
-            if self.state == 'checking':
-                self._begin(time.time())
+            if self.state in ('idle', 'checking'):
+                now = time.time()
+                self._begin(now)
+                self.snap = self._snapshot(now, [k for k in ORDER], DEFAULTS)
+                return True
+            return False
 
     def _clear_tally(self):
         self.total = 0
@@ -115,12 +119,16 @@ class KioskSession:
                 and self.pos[item] / self.total >= cfg['min_ratio']
                 and self.pos[item] > self.neg[item])
 
-    def _finish(self, required, cfg, now):
+    def _finish(self, required, cfg, now, is_valid_employee=True):
         self.result = {i: ('ok' if self._worn(i, cfg) else 'missing') for i in required}
         self.missing = [i for i, v in self.result.items() if v == 'missing']
-        self._go('fail' if self.missing else 'pass', now)
+        # ถ้าไม่มีรหัสพนักงานที่ถูกต้องในระบบ ให้ผลลัพธ์เป็น fail (ไม่ผ่าน) เสมอ
+        if not is_valid_employee:
+            self._go('fail', now)
+        else:
+            self._go('fail' if self.missing else 'pass', now)
 
-    def update(self, detections, frame_shape, settings=None, now=None):
+    def update(self, detections, frame_shape, settings=None, now=None, is_valid_employee=True):
         now = time.time() if now is None else now
         s = settings or {}
         cfg = {k: s.get('kiosk_' + k, v) for k, v in DEFAULTS.items()}
@@ -142,8 +150,8 @@ class KioskSession:
                 self.hint = 'too_far' if (too_small and not present and self.state == 'idle') else None
 
             if self.state == 'idle':
-                if present and not crowded and now - self.present_since >= cfg['enter_seconds']:
-                    self._begin(now)
+                # ไม่เริ่มตรวจอัตโนมัติ ต้องรอ trigger_check() จากการกดปุ่ม 'เริ่มตรวจ' หรือสแกนบัตรสำเร็จเท่านั้น
+                pass
             elif self.state == 'checking':
                 if crowded:
                     self._begin(now)  # เริ่มนับใหม่ รอจนเหลือคนเดียว
@@ -154,7 +162,7 @@ class KioskSession:
                     self._go('idle', now)
                 elif elapsed >= cfg['check_seconds']:
                     if self.total >= cfg['min_frames']:
-                        self._finish(required, cfg, now)
+                        self._finish(required, cfg, now, is_valid_employee=is_valid_employee)
                     elif elapsed >= 2 * cfg['check_seconds']:
                         self._go('idle', now)
             elif self.state == 'pass':
@@ -162,10 +170,7 @@ class KioskSession:
                     self._go('idle', now)
             elif self.state == 'fail':
                 if now - self.since >= cfg['fail_hold']:
-                    if present:
-                        self._begin(now)
-                    elif now - self.last_seen >= cfg['leave_seconds']:
-                        self._go('idle', now)
+                    self._go('idle', now)
 
             self.snap = self._snapshot(now, required, cfg)
             return self.snap

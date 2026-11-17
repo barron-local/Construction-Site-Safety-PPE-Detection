@@ -7,6 +7,9 @@
 <style>
   :root {
     --graphite: #22272e;
+    --navy: #192734;
+    --blue: #1d3557;
+    --indigo: #203a43;
     --yellow: #ffc20e;
     --green: #0a7b3e;
     --red: #c8102e;
@@ -29,6 +32,9 @@
   .sign { display: flex; flex-direction: column; justify-content: center; gap: 1.25rem;
     padding: clamp(1.5rem, 4vmin, 4rem); background: var(--graphite); color: var(--white);
     transition: background-color .25s; }
+  body[data-state="ready"] .sign { background: #16222f; color: var(--white); }
+  body[data-state="badge"] .sign { background: #1e3a5f; color: var(--white); }
+  body[data-state="countdown"] .sign { background: #d97706; color: var(--white); }
   body[data-state="checking"] .sign { background: var(--yellow); color: var(--black); }
   body[data-state="pass"] .sign { background: var(--green); }
   body[data-state="fail"] .sign { background: var(--red); }
@@ -37,9 +43,20 @@
   .verdict { font-weight: 800; line-height: 1.05; font-size: clamp(3.5rem, 13vmin, 11rem); }
   .detail { font-size: clamp(1.25rem, 3.4vmin, 2.4rem); line-height: 1.35; max-width: 28ch; }
 
+  .action-btn { display: inline-flex; align-items: center; justify-content: center;
+    margin-top: .5rem; padding: clamp(.8rem, 2.2vmin, 1.4rem) clamp(1.5rem, 3.5vmin, 2.8rem);
+    font: inherit; font-size: clamp(1.4rem, 3.5vmin, 2.5rem); font-weight: 800;
+    color: var(--white); background: #0284c7; border: 0; border-radius: 12px;
+    cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,.3); transition: transform .15s, background .15s; }
+  .action-btn:hover { background: #0369a1; transform: scale(1.02); }
+  .action-btn:active { transform: scale(0.98); }
+  body[data-state="ready"] .action-btn { background: #2563eb; }
+  body[data-state="badge"] .action-btn { background: #059669; }
+
   .bar { height: 14px; background: rgba(0,0,0,.2); border-radius: 7px; overflow: hidden; visibility: hidden; }
-  body[data-state="checking"] .bar { visibility: visible; }
+  body[data-state="checking"] .bar, body[data-state="countdown"] .bar { visibility: visible; }
   .bar i { display: block; height: 100%; width: 0; background: var(--black); transition: width .25s linear; }
+  body[data-state="countdown"] .bar i { background: var(--white); }
 
   .checklist { list-style: none; padding: 0; display: grid; gap: .6rem; }
   .checklist li { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline;
@@ -68,6 +85,7 @@
     <div class="who" id="who"></div>
     <div class="verdict" id="verdict">ยืนหน้ากล้อง</div>
     <p class="detail" id="detail"></p>
+    <button class="action-btn" id="actionBtn" type="button" hidden>เริ่มตรวจ</button>
     <div class="bar"><i id="barFill"></i></div>
     <ul class="checklist" id="checklist"></ul>
   </section>
@@ -88,41 +106,141 @@ const MARK = { pending: 'รอตรวจ', ok: 'มี', missing: 'ขาด'
 const $ = id => document.getElementById(id);
 const list = a => a.map(k => NAME[k] || k).join(', ');
 
+// Local step state: 'ready' (กดเริ่มตรวจ) -> 'badge' (แสดงบัตร/พิมพ์รหัส) -> 'countdown' (นับถอยหลัง) -> 'server' (checking/pass/fail)
+let uiStep = 'ready';
+let countdownVal = 3;
+let countdownTimer = null;
+let lastServerState = 'idle';
+
 async function startFeed() {
   try { await fetch('/start_stream', { method: 'POST' }); } catch (e) {}
   $('feed').src = '/video_feed?clean=1&t=' + Date.now();
 }
 
+function startCountdown() {
+  if (uiStep === 'countdown') return;
+  uiStep = 'countdown';
+  countdownVal = 3;
+  if (countdownTimer) clearInterval(countdownTimer);
+  
+  countdownTimer = setInterval(async () => {
+    countdownVal--;
+    if (countdownVal <= 0) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      uiStep = 'server';
+      // Trigger backend checking session
+      try { await fetch('/api/kiosk_trigger', { method: 'POST' }); } catch (e) {}
+    }
+    // Re-render UI
+    if (window.lastKioskState) render(window.lastKioskState);
+  }, 1000);
+  if (window.lastKioskState) render(window.lastKioskState);
+}
+
+function handleActionClick() {
+  if (uiStep === 'ready') {
+    uiStep = 'badge';
+    $('emp').focus();
+    if (window.lastKioskState) render(window.lastKioskState);
+  } else if (uiStep === 'badge') {
+    if (window.lastKioskState && window.lastKioskState.employee && window.lastKioskState.employee.code) {
+      startCountdown();
+    } else {
+      $('emp').focus();
+      $('emp').placeholder = 'กรุณาระบุรหัสพนักงาน';
+    }
+  }
+}
+
+$('actionBtn').addEventListener('click', handleActionClick);
+
 function render(s) {
-  document.body.dataset.state = s.state;
+  window.lastKioskState = s;
+  
+  // State transition tracking from server
+  if (s.state === 'pass' || s.state === 'fail') {
+    uiStep = 'server';
+  } else if (s.state === 'checking') {
+    // Only switch to server checking if we are not in ready or countdown phase
+    if (uiStep !== 'ready' && uiStep !== 'countdown') {
+      uiStep = 'server';
+    }
+  } else if (s.state === 'idle') {
+    if (lastServerState === 'pass' || lastServerState === 'fail') {
+      // Finished a check cycle, return to ready step
+      uiStep = 'ready';
+    }
+  }
+  lastServerState = s.state;
+
+  // Decide current active state for styling & layout
+  let activeState = (uiStep === 'server') ? s.state : uiStep;
+  document.body.dataset.state = activeState;
+
   const req = list(s.required);
-  let verdict, detail;
+  let verdict, detail, whoText;
+  const e = s.employee;
+  const btn = $('actionBtn');
+
   if (s.hint === 'multiple') {
     verdict = 'ตรวจทีละคน';
     detail = 'ให้คนอื่นถอยออกจากหน้ากล้อง เหลือผู้ตรวจคนเดียว';
+    btn.hidden = true;
+  } else if (uiStep === 'ready') {
+    verdict = 'จุดตรวจ PPE';
+    detail = '';
+    whoText = 'ระบบตรวจสอบความปลอดภัยอัตโนมัติ';
+    btn.hidden = false;
+    btn.textContent = 'เริ่มตรวจ';
+  } else if (uiStep === 'badge') {
+    verdict = 'ระบุตัวตน';
+    detail = 'แสดงบัตร QR Code หรือพิมพ์รหัสพนักงานด้านล่าง แล้วกดยืนยัน';
+    whoText = e ? ('พนักงาน: ' + e.code + (e.name ? ' · ' + e.name : '')) : 'แสดงบัตรพนักงานให้กล้องเห็น หรือพิมพ์รหัสด้านล่าง';
+    btn.hidden = false;
+    btn.textContent = e ? 'ยืนยันและเริ่มตรวจ' : 'ยืนยันรหัสพนักงาน';
+  } else if (uiStep === 'countdown') {
+    verdict = countdownVal > 0 ? countdownVal : 'เริ่มตรวจ!';
+    detail = 'เตรียมตัวให้พร้อม ระบบกำลังจะเริ่มตรวจ PPE';
+    whoText = e ? ('พนักงาน: ' + e.code + (e.name ? ' · ' + e.name : '')) : 'กำลังเริ่มตรวจ...';
+    btn.hidden = true;
   } else if (s.state === 'checking') {
     verdict = 'กำลังตรวจ';
     detail = 'ยืนนิ่ง ๆ อีก ' + s.seconds_left + ' วินาที';
+    whoText = e ? ('พนักงาน: ' + e.code + (e.name ? ' · ' + e.name : '')) : 'กำลังตรวจ PPE...';
+    btn.hidden = true;
   } else if (s.state === 'pass') {
     verdict = 'ผ่าน';
     detail = 'แต่งกายครบ เข้าพื้นที่ได้';
+    whoText = e ? ('รหัส ' + e.code + (e.name ? ' · ' + e.name : '')) : 'ตรวจผ่าน';
+    btn.hidden = true;
   } else if (s.state === 'fail') {
     verdict = 'ไม่ผ่าน';
-    detail = 'ขาด' + list(s.missing) + ' สวมให้ครบ ระบบจะตรวจใหม่อัตโนมัติ';
+    detail = 'ขาด' + list(s.missing) + ' สวมให้ครบ';
+    whoText = e ? ('รหัส ' + e.code + (e.name ? ' · ' + e.name : '')) : 'ตรวจไม่ผ่าน';
+    btn.hidden = true;
   } else {
     verdict = s.hint === 'too_far' ? 'เข้าใกล้อีกนิด' : 'ยืนหน้ากล้อง';
     detail = 'ระบบจะตรวจ' + req + ' ก่อนเข้าพื้นที่';
+    whoText = 'แสดงบัตรพนักงานให้กล้องเห็น หรือพิมพ์รหัสด้านล่าง';
+    btn.hidden = true;
   }
+
   $('verdict').textContent = verdict;
-  const e = s.employee;
-  $('who').textContent = e ? 'รหัส ' + e.code + (e.name ? ' · ' + e.name : '')
-    : (s.state === 'pass' || s.state === 'fail' ? 'ไม่ทราบรหัสพนักงาน' : 'แสดงบัตรพนักงานให้กล้องเห็น หรือพิมพ์รหัสด้านล่าง');
   $('detail').textContent = detail;
-  $('barFill').style.width = (s.progress * 100) + '%';
+  $('who').textContent = whoText;
+
+  if (uiStep === 'countdown') {
+    $('barFill').style.width = ((4 - countdownVal) / 3 * 100) + '%';
+  } else {
+    $('barFill').style.width = (s.progress * 100) + '%';
+  }
+
   $('checklist').innerHTML = s.required.map(k => {
     const st = s.items[k] || 'pending';
     return '<li data-s="' + st + '"><span>' + NAME[k] + '</span><span>' + MARK[st] + '</span></li>';
   }).join('');
+
   const hw = s.hardware || {};
   $('hw').textContent = 'ไมโครคอนโทรลเลอร์: ' +
     (hw.connected ? 'เชื่อมต่อแล้ว (' + hw.port + ')' : hw.pyserial === false ? 'ยังไม่ได้ติดตั้ง pyserial' : 'ไม่พบบอร์ด');
@@ -132,6 +250,10 @@ let lastRestart = 0;
 async function poll() {
   try {
     const s = await (await fetch('/api/kiosk_state')).json();
+    // If QR code was scanned automatically on camera while in badge step:
+    if (uiStep === 'badge' && s.employee && s.employee.code) {
+      startCountdown();
+    }
     render(s);
     const bad = s.stale;
     $('camMsg').hidden = !bad;
@@ -145,8 +267,12 @@ async function sendId() {
   const code = $('emp').value.trim();
   if (!code) return;
   const r = await fetch('/api/kiosk_id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+  const data = await r.json();
   $('emp').value = '';
-  $('emp').placeholder = r.ok ? '' : (await r.json()).message;
+  $('emp').placeholder = r.ok ? '' : data.message;
+  if (r.ok) {
+    startCountdown();
+  }
 }
 $('empOk').addEventListener('click', sendId);
 $('emp').addEventListener('keydown', ev => { if (ev.key === 'Enter') sendId(); });

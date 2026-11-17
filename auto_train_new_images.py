@@ -105,22 +105,26 @@ def backup_master_model():
     return backup_dest
 
 def check_is_cap(cap_model, img, bbox):
-    """ตรวจสอบว่าหมวกที่ตรวจพบเป็นหมวกแก๊ปหรือไม่ ด้วย Anatomical Context"""
-    if cap_model is None:
+    """ตรวจสอบว่าหมวกที่ตรวจพบเป็นหมวกแก๊ปหรือไม่ อย่างระมัดระวัง (ป้องกัน False-Positive)"""
+    if cap_model is None or not hasattr(cap_model, 'names'):
+        return False, 0.0
+    # ตรวจสอบว่าโมเดลมีคลาส Cap หรือไม่
+    has_cap_class = any('cap' in str(v).lower() for v in cap_model.names.values())
+    if not has_cap_class:
         return False, 0.0
     try:
         x1, y1, x2, y2 = [int(v) for v in bbox]
         h, w = img.shape[:2]
-        pad_w = int((x2 - x1) * 0.45)
-        pad_h = int((y2 - y1) * 0.45)
+        pad_w = int((x2 - x1) * 0.35)
+        pad_h = int((y2 - y1) * 0.35)
         cx1 = max(0, x1 - pad_w)
         cy1 = max(0, y1 - pad_h)
         cx2 = min(w, x2 + pad_w)
         cy2 = min(h, y2 + pad_h)
         crop = img[cy1:cy2, cx1:cx2]
-        if crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
+        if crop.size == 0 or crop.shape[0] < 15 or crop.shape[1] < 15:
             return False, 0.0
-        c_res = cap_model.predict(crop, conf=0.20, verbose=False)[0]
+        c_res = cap_model.predict(crop, conf=0.30, verbose=False)[0]
         max_cap = 0.0
         max_hh = 0.0
         for cb in c_res.boxes:
@@ -130,7 +134,8 @@ def check_is_cap(cap_model, img, bbox):
                 max_cap = max(max_cap, conf)
             elif cname == 'hardhat':
                 max_hh = max(max_hh, conf)
-        if max_cap >= 0.70 and max_cap > max_hh:
+        # Cap ต้องเด่นชัดมาก (>= 85%) และเหนือกว่า Hardhat อย่างชัดเจน
+        if max_cap >= 0.85 and max_cap > (max_hh * 1.5):
             return True, max_cap
     except Exception:
         pass
@@ -417,10 +422,31 @@ def run_pipeline(epochs=15, batch=None, dry_run=False, auto_deploy=False):
     print(f"  -> โมเดลต้นฉบับสำรองไว้อย่างปลอดภัยที่: {backup_path}")
     print("=" * 70)
 
-    # ขั้นตอนที่ 6: ตัวเลือกการ Deploy
+    # ขั้นตอนที่ 6: การประเมินผลความแม่นยำ (Validation Benchmark)
+    print("\n" + "=" * 70)
+    print("  📊 ประเมินผลความแม่นยำของโมเดลใหม่ (Validation on Test Set)...")
+    print("=" * 70)
+    val_metrics = None
+    try:
+        new_yolo = YOLO(new_weights_path)
+        val_metrics = new_yolo.val(data=os.path.join(BASE_DIR, 'Model-Training/Outputs/data.yaml'), split='test', verbose=False)
+        mAP50 = float(val_metrics.box.map50)
+        mAP50_95 = float(val_metrics.box.map)
+        print(f"  -> โมเดลใหม่ mAP50: {mAP50:.4f} ({mAP50*100:.1f}%) | mAP50-95: {mAP50_95:.4f}")
+        for idx, cname in enumerate(val_metrics.names.values()):
+            if idx < len(val_metrics.box.maps):
+                print(f"     * {cname:15s}: mAP50-95 = {val_metrics.box.maps[idx]:.4f}")
+    except Exception as e:
+        print(f"[-] ไม่สามารถประเมินผลได้: {e}")
+
+    # ขั้นตอนที่ 7: ตัวเลือกการ Deploy อย่างปลอดภัย
     if os.path.exists(new_weights_path):
+        is_safe_to_deploy = (val_metrics is not None and val_metrics.box.map50 >= 0.70)
         if auto_deploy:
-            deploy_new_model(new_weights_path)
+            if is_safe_to_deploy or val_metrics is None:
+                deploy_new_model(new_weights_path)
+            else:
+                print(f"[!] คำเตือน: mAP50 ({val_metrics.box.map50:.4f}) ต่ำกว่าเกณฑ์ความปลอดภัย 0.70 ยกเลิกการ auto-deploy อัตโนมัติ")
         else:
             print("\nต้องการนำโมเดลที่เทรนใหม่นี้ไปใช้งานบนระบบเว็บ (Model-Deployment) ทันทีหรือไม่?")
             ans = input("พิมพ์ 'y' เพื่อ Deploy หรือ 'n' เพื่อเก็บไว้ทดสอบก่อน (default: n): ").strip().lower()

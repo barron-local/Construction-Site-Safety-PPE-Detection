@@ -26,6 +26,7 @@ class InstanceDetector:
             'mask': False
         }
         self.detection_mode = 'single'  # 'single' or 'multi'
+        self._last_settings = None
     
     def _load_serial_counter(self):
         """Load the serial counter from file, reset if new day"""
@@ -81,7 +82,8 @@ class InstanceDetector:
         """Process all detections and determine instance"""
         current_time = time.time()
         
-        if settings:
+        if settings and settings != self._last_settings:
+            self._last_settings = dict(settings)
             self.update_settings(settings)
         
         has_person = any(d['class'].lower() == 'person' for d in all_detections)
@@ -162,6 +164,7 @@ class InstanceDetector:
                     missing_ppe.append('mask')
         
         if not raw_is_compliant:
+            self.compliant_frame_count = 0
             if not self.pending_non_compliant:
                 self.pending_non_compliant = True
                 self.non_compliance_start_time = current_time
@@ -173,8 +176,10 @@ class InstanceDetector:
             else:
                 is_compliant = True
         else:
-            self.pending_non_compliant = False
-            self.non_compliance_start_time = None
+            self.compliant_frame_count = getattr(self, 'compliant_frame_count', 0) + 1
+            if self.compliant_frame_count >= 4:
+                self.pending_non_compliant = False
+                self.non_compliance_start_time = None
             is_compliant = True
         
         filtered_detected_ppe = []

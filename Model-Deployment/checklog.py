@@ -29,6 +29,14 @@ def valid_code(code):
     return bool(code) and bool(CODE_RE.match(code))
 
 
+def employee_exists(code):
+    """ตรวจสอบว่ามีรหัสพนักงานนี้อยู่ในฐานข้อมูลจริงหรือไม่"""
+    if not valid_code(code):
+        return False
+    rows = _q('SELECT 1 FROM employees WHERE code = ?', (code,))
+    return bool(rows)
+
+
 def name_of(code):
     rows = _q('SELECT name FROM employees WHERE code = ?', (code,))
     return rows[0][0] if rows else ''
@@ -108,6 +116,13 @@ class CheckRecorder:
         self.name = ''
         self.code_time = 0.0
         self.prev = 'idle'
+
+    def clear(self):
+        """ล้างรหัสพนักงานค้างทันที (เช่น เมื่อเริ่มรอบใหม่หรือรีเฟรช)"""
+        with self.lock:
+            self.code = None
+            self.name = ''
+            self.code_time = 0.0
 
     def set_code(self, code):
         """คืน True ถ้าเป็นรหัสใหม่ที่ใช้ได้"""

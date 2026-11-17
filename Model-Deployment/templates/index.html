@@ -464,7 +464,7 @@
     </div>
 
     <script>
-        const socket = io();
+        const socket = io({ transports: ['polling'] });
         let isStreaming = false;
         let devMode = false;
 

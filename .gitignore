@@ -5,6 +5,13 @@
 /Model-Deployment/settings.json
 /Model-Deployment/instance_counter.json
 *.pyc
+*.cache
 bugs.txt
-Model-Training/Outputs/backups/**/*.pt
+Model-Training/Outputs/backups/
+Model-Training/Outputs/runs/detect/ppe_finetune_*/
+Model-Training/extracted_frames/
+Model-Testing/*.jpg
+Model-Testing/*.png
+New-Training-Images/annotated_previews/
+runs/
 Model-Training/Dataset/finetune_workspace/
