@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>จัดการระบบและบันทึกผล PPE (Admin)</title>
+<style>
+  :root {
+    --ink: #16191d;
+    --muted: #5b6670;
+    --line: #d9dde2;
+    --bg: #f4f5f7;
+    --card-bg: #ffffff;
+    --green: #0a7b3e;
+    --red: #c8102e;
+    --blue: #1a73e8;
+    --blue-dark: #1557b0;
+    --font: "Avenir Next", "Sukhumvit Set", "Thonburi", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
+  
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    padding: 1.1rem 2rem;
+    background: var(--ink);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  header h1 { flex: 1; margin: 0; font-size: 1.35rem; display: flex; align-items: center; gap: .5rem; }
+  header .nav { display: flex; gap: 1rem; font-size: .95rem; }
+  header a { color: #e2e8f0; text-decoration: none; padding: .35rem .75rem; border-radius: 6px; transition: background .15s; }
+  header a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+  /* Tab Navigation Bar */
+  .tab-bar-wrap {
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .tab-bar {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    gap: .5rem;
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 1rem 1.25rem;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .2s;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  .tab-btn:hover { color: var(--ink); background: rgba(0,0,0,0.02); }
+  .tab-btn.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+  }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: grid; gap: 1.25rem; animation: fadeIn .2s ease-in-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .card, section { background: var(--card-bg); border: 1px solid var(--line); border-radius: 12px; padding: 1.2rem 1.4rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .card b { display: block; font-size: 2.4rem; line-height: 1.1; margin-top: .25rem; }
+  .card.pass b { color: var(--green); }
+  .card.fail b { color: var(--red); }
+  .card.pending b { color: var(--muted); }
+  
+  section { overflow-x: auto; }
+  h2 { margin: 0 0 .85rem; font-size: 1.15rem; display: flex; align-items: center; justify-content: space-between; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: .6rem .75rem; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); font-size: .95rem; }
+  th { color: var(--muted); font-size: .88rem; font-weight: 600; background: #fafbfc; }
+  
+  .badge { display: inline-block; padding: .15rem .65rem; border-radius: 999px; font-size: .88rem; font-weight: 700; }
+  .badge.pass { background: var(--green); color: #fff; }
+  .badge.fail { background: var(--red); color: #fff; }
+  .badge.none { border: 1px solid var(--muted); color: var(--muted); }
+  
+  textarea, input[type="text"], select {
+    width: 100%;
+    padding: .6rem .75rem;
+    font: inherit;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    margin-top: .25rem;
+  }
+  textarea { min-height: 6.5rem; margin-bottom: .6rem; }
+  
+  .form-group {
+    margin-bottom: 1.2rem;
+  }
+  .form-group label {
+    font-size: .92rem;
+    font-weight: 600;
+    color: var(--ink);
+    display: block;
+  }
+  .form-hint {
+    font-size: .82rem;
+    color: var(--muted);
+    margin-top: .25rem;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+
+  button {
+    padding: .55rem 1.25rem;
+    font: inherit;
+    font-weight: 600;
+    color: #fff;
+    background: var(--ink);
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+  }
+  button:hover { background: #2b3038; }
+  button:active { transform: scale(0.98); }
+  button.primary { background: var(--blue); }
+  button.primary:hover { background: var(--blue-dark); }
+  
+  button.link { padding: 0 .4rem; background: none; text-decoration: underline; cursor: pointer; border: 0; font: inherit; }
+  button.link.del { color: var(--red); }
+  button.link.qr { color: var(--blue); font-weight: 600; }
+
+  .log-thumb {
+    width: 52px;
+    height: 38px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    cursor: pointer;
+    vertical-align: middle;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .log-thumb:hover {
+    transform: scale(1.12);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+  }
+
+  .preview-box {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .preview-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .preview-tag {
+    position: absolute;
+    bottom: .5rem;
+    left: .5rem;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    font-size: .75rem;
+    padding: .2rem .5rem;
+    border-radius: 4px;
+  }
+
+  .alert-toast {
+    display: none;
+    padding: .75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-weight: 500;
+  }
+  .alert-toast.success { display: block; background: #e6f4ea; color: var(--green); border: 1px solid #b7e1cd; }
+  .alert-toast.error { display: block; background: #fce8e6; color: var(--red); border: 1px solid #fad2cf; }
+
+  /* Modal Dialogs */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .modal-backdrop.active { opacity: 1; pointer-events: auto; }
+  .modal-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.75rem 2rem;
+    max-width: 360px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    position: relative;
+    transform: scale(0.92);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .modal-box.modal-box-large {
+    max-width: 820px;
+    padding: 1.5rem;
+  }
+  .modal-backdrop.active .modal-box { transform: scale(1); }
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: #f1f5f9;
+    color: #475569;
+    border: 0;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-close:hover { background: #e2e8f0; color: #0f172a; }
+  .modal-title { margin: 0 0 .35rem; font-size: 1.25rem; font-weight: 700; }
+  .modal-emp { font-size: .95rem; color: var(--muted); margin-bottom: 1.25rem; }
+  .modal-qr-img {
+    width: 220px;
+    height: 220px;
+    margin: 0 auto;
+    display: block;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 8px;
+    background: #fff;
+  }
+  .modal-full-img {
+    max-width: 100%;
+    max-height: 72vh;
+    border-radius: 8px;
+    display: block;
+    margin: 0 auto;
+    object-fit: contain;
+    background: #000;
+  }
+  .modal-actions {
+    margin-top: 1.25rem;
+    display: flex;
+    gap: .75rem;
+    justify-content: center;
+  }
+
+  @media (max-width: 768px) {
+    .cards, .grid-2 { grid-template-columns: 1fr; }
+    main, header { padding-left: 1rem; padding-right: 1rem; }
+    .tab-bar { padding: 0 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>จัดการระบบตรวจวัด PPE (Admin)</h1>
+  <div class="nav">
+    <a href="/kiosk">หน้าจุดตรวจ Kiosk</a>
+    <a href="/changelog">ประวัติอัปเดต (Changelog)</a>
+    <a href="/">แดชบอร์ดตรวจจับ</a>
+  </div>
+</header>
+
+<div class="tab-bar-wrap">
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('cam')">ตั้งค่ากล้อง & สแกน Kiosk</button>
+    <button class="tab-btn" onclick="switchTab('logs')">บันทึกผลตรวจ (Logs)</button>
+    <button class="tab-btn" onclick="switchTab('emp')">จัดการพนักงาน (Employees)</button>
+  </div>
+</div>
+
+<main>
+
+  <!-- TAB 1: Camera & Kiosk Settings -->
+  <div id="pane-cam" class="tab-pane active">
+    <div id="toast" class="alert-toast"></div>
+    <div class="grid-2">
+      <section>
+        <h2>กำหนดค่ากล้องสแกน (Kiosk Camera Setup)</h2>
+        <form id="camForm" onsubmit="saveCameraSettings(event)">
+          <div class="form-group">
+            <label for="camDeviceSelect">เลือกอุปกรณ์กล้อง (Camera Device / Index):</label>
+            <select id="camDeviceSelect" onchange="switchCameraQuick(this.value)">
+              <option value="0">กำลังค้นหากล้องในเครื่อง...</option>
+            </select>
+            <div class="form-hint">เปลี่ยนกล้องแล้วภาพตัวอย่างจะสลับทันที</div>
+          </div>
+
+          <div class="form-group">
+            <label for="camResSelect">ความละเอียดภาพสแกน (Resolution):</label>
+            <select id="camResSelect" onchange="switchResolutionQuick(this.value)">
+              <option value="640x320">640 x 320 (Ultra Fast / เบาเครื่องสุด)</option>
+              <option value="640x480">640 x 480 (VGA 480p - ความเร็วสูง ประหยัด CPU)</option>
+              <option value="1280x720">1280 x 720 (HD 720p - คมชัดสูง แนะนำสำหรับตรวจ PPE)</option>
+              <option value="1920x1080">1920 x 1080 (Full HD 1080p - ความละเอียดสูงสุด)</option>
+            </select>
+            <div class="form-hint">ส่งผลต่อหน้าสแกน <code>/kiosk</code> และการตรวจจับโมเดล AI</div>
+          </div>
+
+          <div class="form-group">
+            <label for="renderDeviceSelect">ช่องทางประมวลผลโมเดล (Render Engine):</label>
+            <select id="renderDeviceSelect" onchange="switchRenderDeviceQuick(this.value)">
+              <option value="gpu">GPU</option>
+              <option value="cpu">CPU</option>
+            </select>
+            <div class="form-hint">เลือกใช้การ์ดจอแยกหรือโปรเซสเซอร์ในการรัน AI ตรวจจับ</div>
+          </div>
+
+          <div class="form-group">
+            <label for="passHistoryModeSelect">การแสดงประวัติผู้ตรวจผ่านในหน้า Kiosk:</label>
+            <select id="passHistoryModeSelect" onchange="switchPassHistoryModeQuick(this.value)">
+              <option value="latest">ประวัติผู้ตรวจผ่านล่าสุด</option>
+              <option value="all">ประวัติผู้ตรวจผ่านทั้งหมด</option>
+            </select>
+            <div class="form-hint">เลือกว่าจะให้แถบข้างในหน้าจุดตรวจแสดงเฉพาะคนล่าสุด หรือแสดงรายการทั้งหมด</div>
+          </div>
+
+          <div class="form-group">
+            <label>อุปกรณ์ที่บังคับตรวจในจุดตรวจนี้:</label>
+            <div style="display: flex; gap: 1.25rem; margin-top: .5rem;">
+              <label style="font-weight: normal; cursor: pointer;">
+                <input type="checkbox" id="ppeHelmet" onchange="switchPpeQuick()" checked> หมวกนิรภัย (Helmet)
+              </label>
+              <label style="font-weight: normal; cursor: pointer;">
+                <input type="checkbox" id="ppeVest" onchange="switchPpeQuick()" checked> เสื้อสะท้อนแสง (Safety Vest)
+              </label>
+              <label style="font-weight: normal; cursor: pointer;">
+                <input type="checkbox" id="ppeMask" onchange="switchPpeQuick()"> หน้ากาก (Mask)
+              </label>
+            </div>
+            <div class="form-hint">ติ๊กเลือกหรือติ๊กออกแล้วระบบจะอัปเดตเงื่อนไขจุดตรวจทันที</div>
+          </div>
+
+          <div style="margin-top: 1.5rem; display: flex; gap: .75rem;">
+            <button type="submit" class="primary">บันทึกการตั้งค่ากล้อง</button>
+            <button type="button" onclick="refreshDevices()">สแกนหากล้องใหม่</button>
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <h2>ตัวอย่างภาพกล้องสด (Camera Live Preview)</h2>
+        <div class="preview-box">
+          <img id="camPreview" src="/video_feed?clean=1" alt="Camera Feed">
+          <div class="preview-tag" id="previewTag">Stream: Active</div>
+        </div>
+        <p class="form-hint" style="margin-top: .75rem;">
+          ภาพตัวอย่างนี้จะแสดงผลมุมมองเดียวกับที่หน้าจุดตรวจ <b>/kiosk</b> นำไปสแกนรหัสพนักงานและตรวจจับเครื่องแต่งกาย
+        </p>
+      </section>
+    </div>
+  </div>
+
+  <!-- TAB 2: Inspection Logs & History -->
+  <div id="pane-logs" class="tab-pane">
+    <div class="cards">
+      <div class="card pass"><span style="color:var(--muted); font-size:.9rem; font-weight:600;">ผ่านวันนี้</span><b id="cPass">-</b></div>
+      <div class="card fail"><span style="color:var(--muted); font-size:.9rem; font-weight:600;">ไม่ผ่านวันนี้</span><b id="cFail">-</b></div>
+      <div class="card pending"><span style="color:var(--muted); font-size:.9rem; font-weight:600;">ยังไม่ตรวจ</span><b id="cNone">-</b></div>
+    </div>
+
+    <section>
+      <h2>สถานะพนักงานวันนี้ (Today's Status)</h2>
+      <table>
+        <thead>
+          <tr><th>รหัส</th><th>ชื่อ</th><th>สถานะ</th><th>เวลาล่าสุด</th><th>ขาด</th></tr>
+        </thead>
+        <tbody id="today"></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>ประวัติการตรวจล่าสุด (Recent Check Logs)</h2>
+      <table>
+        <thead>
+          <tr><th>เวลา</th><th>รหัส</th><th>ชื่อ</th><th>ผลตรวจ</th><th>สิ่งที่ขาด</th><th>ภาพบันทึก</th></tr>
+        </thead>
+        <tbody id="logs"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- TAB 3: Employee Management -->
+  <div id="pane-emp" class="tab-pane">
+    <section>
+      <h2>เพิ่มหรือแก้ไขรายชื่อพนักงาน</h2>
+      <textarea id="bulk" placeholder="ตัวอย่าง:
+1001 ชื่อ นามสกุล
+2001,ชื่อ นามสกุล"></textarea>
+      <div style="display: flex; gap: .75rem; align-items: center;">
+        <button id="add" class="primary">บันทึกรายชื่อ</button>
+        <span id="msg" style="color: var(--blue); font-weight: 500;"></span>
+      </div>
+    </section>
+
+    <section>
+      <h2>บัญชีรายชื่อพนักงานทั้งหมด (All Registered Employees)</h2>
+      <table>
+        <thead>
+          <tr><th>รหัส</th><th>ชื่อ</th><th>QR Code สำหรับติดบัตร</th><th>การจัดการ</th></tr>
+        </thead>
+        <tbody id="emps"></tbody>
+      </table>
+    </section>
+  </div>
+
+</main>
+
+<!-- Modal: QR Code Badge -->
+<div id="qrModal" class="modal-backdrop">
+  <div class="modal-box">
+    <button id="modalClose" class="modal-close" type="button">&times;</button>
+    <div class="modal-title" id="modalTitle">QR บัตรพนักงาน</div>
+    <div class="modal-emp" id="modalEmp"></div>
+    <img id="modalQrImg" class="modal-qr-img" src="" alt="QR Code">
+    <div class="modal-actions">
+      <a id="modalDownload" href="" download class="badge pass" style="text-decoration:none; padding:.5rem 1.25rem; font-size:1rem;">ดาวน์โหลด QR</a>
+      <button id="modalCloseBtn" type="button" style="background:#e2e8f0; color:#334155;">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Full Inspection Image Preview -->
+<div id="imgModal" class="modal-backdrop">
+  <div class="modal-box modal-box-large">
+    <button id="imgModalClose" class="modal-close" type="button">&times;</button>
+    <div class="modal-title">ภาพตอนตรวจจับ PPE (Inspection Snapshot)</div>
+    <div class="modal-emp" id="imgModalInfo"></div>
+    <img id="imgModalSrc" class="modal-full-img" src="" alt="ภาพตอนตรวจ">
+    <div class="modal-actions">
+      <a id="imgModalDownload" href="" download class="badge pass" style="text-decoration:none; padding:.5rem 1.25rem; font-size:1rem;">ดาวน์โหลดภาพเต็ม</a>
+      <button id="imgModalCloseBtn" type="button" style="background:#e2e8f0; color:#334155;">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+})[c]);
+
+let currentConfig = {};
+
+// Tab switching
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  
+  const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+  if (targetBtn) targetBtn.classList.add('active');
+  
+  const targetPane = $('pane-' + tabId);
+  if (targetPane) targetPane.classList.add('active');
+
+  // Reload feed preview if camera tab is opened
+  if (tabId === 'cam') {
+    startPreview();
+  }
+}
+
+async function startPreview() {
+  try { await fetch('/start_stream', { method: 'POST' }); } catch (e) {}
+  $('camPreview').src = '/video_feed?clean=1&t=' + Date.now();
+}
+
+// Show Toast feedback
+function showToast(msg, isSuccess = true) {
+  const t = $('toast');
+  t.className = 'alert-toast ' + (isSuccess ? 'success' : 'error');
+  t.textContent = msg;
+  setTimeout(() => { t.className = 'alert-toast'; }, 4000);
+}
+
+async function switchCameraQuick(idx) {
+  const camIdx = parseInt(idx);
+  const [w, h] = $('camResSelect').value.split('x').map(Number);
+  $('previewTag').textContent = 'Stream: กำลังเปลี่ยนกล้อง ' + camIdx + '...';
+  
+  const updated = {
+    ...currentConfig,
+    camera_index: camIdx,
+    camera_width: w,
+    camera_height: h
+  };
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (res.ok) {
+      currentConfig = updated;
+      try {
+        localStorage.setItem('ppe_admin_settings', JSON.stringify(updated));
+      } catch (err) {}
+      $('previewTag').textContent = 'Stream: กล้อง ' + camIdx + ' (Active)';
+      setTimeout(() => {
+        $('camPreview').src = '/video_feed?clean=1&t=' + Date.now();
+      }, 300);
+    }
+  } catch (e) {
+    console.error('Error switching camera:', e);
+  }
+}
+
+async function switchResolutionQuick(resVal) {
+  const [w, h] = resVal.split('x').map(Number);
+  const camIdx = parseInt($('camDeviceSelect').value || 0);
+  $('previewTag').textContent = 'Stream: ปรับความละเอียด ' + resVal + '...';
+  
+  const updated = {
+    ...currentConfig,
+    camera_index: camIdx,
+    camera_width: w,
+    camera_height: h
+  };
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (res.ok) {
+      currentConfig = updated;
+      try {
+        localStorage.setItem('ppe_admin_settings', JSON.stringify(updated));
+      } catch (err) {}
+      $('previewTag').textContent = 'Stream: ' + resVal + ' (Active)';
+      setTimeout(() => {
+        $('camPreview').src = '/video_feed?clean=1&t=' + Date.now();
+      }, 300);
+    }
+  } catch (e) {
+    console.error('Error switching resolution:', e);
+  }
+}
+
+async function switchRenderDeviceQuick(devVal) {
+  $('previewTag').textContent = 'Stream: สลับช่องทางเป็น ' + devVal.toUpperCase() + '...';
+  
+  const updated = {
+    ...currentConfig,
+    device: devVal
+  };
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (res.ok) {
+      currentConfig = updated;
+      try {
+        localStorage.setItem('ppe_admin_settings', JSON.stringify(updated));
+      } catch (err) {}
+      $('previewTag').textContent = 'Stream: ' + devVal.toUpperCase() + ' (Active)';
+      showToast('สลับช่องทาง Render เป็น ' + devVal.toUpperCase() + ' สำเร็จแล้ว', true);
+    }
+  } catch (e) {
+    console.error('Error switching render device:', e);
+  }
+}
+
+async function switchPassHistoryModeQuick(modeVal) {
+  const updated = {
+    ...currentConfig,
+    kiosk_pass_history_mode: modeVal
+  };
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (res.ok) {
+      currentConfig = updated;
+      try {
+        localStorage.setItem('ppe_admin_settings', JSON.stringify(updated));
+      } catch (err) {}
+      const modeText = modeVal === 'all' ? 'ประวัติผู้ตรวจผ่านทั้งหมด' : 'ประวัติผู้ตรวจผ่านล่าสุด';
+      showToast('เปลี่ยนรูปแบบแสดงผลเป็น: ' + modeText + ' (มีผลทันที)', true);
+    }
+  } catch (e) {
+    console.error('Error switching pass history mode:', e);
+  }
+}
+
+async function switchPpeQuick() {
+  const helmet = $('ppeHelmet').checked;
+  const vest = $('ppeVest').checked;
+  const mask = $('ppeMask').checked;
+
+  const updated = {
+    ...currentConfig,
+    required_ppe: { helmet, vest, mask }
+  };
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (res.ok) {
+      currentConfig = updated;
+      try {
+        localStorage.setItem('ppe_admin_settings', JSON.stringify(updated));
+      } catch (err) {}
+      showToast('อัปเดตอุปกรณ์บังคับตรวจเรียบร้อยแล้ว (มีผลทันที)', true);
+    }
+  } catch (e) {
+    console.error('Error switching PPE requirements:', e);
+  }
+}
+
+// Load and render camera devices
+async function refreshDevices() {
+  const sel = $('camDeviceSelect');
+  try {
+    const res = await fetch('/api/camera_devices');
+    const devices = await res.json();
+    sel.innerHTML = '';
+    devices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.index;
+      opt.textContent = d.name;
+      sel.appendChild(opt);
+    });
+    if (currentConfig.camera_index !== undefined) {
+      sel.value = currentConfig.camera_index;
+    }
+  } catch (err) {
+    sel.innerHTML = `
+      <option value="0">กล้องหลัก (Camera 0 / Default)</option>
+      <option value="1">กล้องตัวที่สอง (Camera 1 / USB 1)</option>
+      <option value="2">กล้องตัวที่สาม (Camera 2 / USB 2)</option>
+      <option value="3">กล้องตัวที่สี่ (Camera 3 / DroidCam / OBS)</option>
+    `;
+    if (currentConfig.camera_index !== undefined) {
+      sel.value = currentConfig.camera_index;
+    }
+  }
+}
+
+// Load current system settings
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    currentConfig = await res.json();
+    
+    // Select resolution
+    const w = currentConfig.camera_width || 1280;
+    const h = currentConfig.camera_height || 720;
+    $('camResSelect').value = `${w}x${h}`;
+
+    // Select render device
+    if ($('renderDeviceSelect') && currentConfig.device) {
+      $('renderDeviceSelect').value = currentConfig.device;
+    }
+
+    // Select pass history mode
+    if ($('passHistoryModeSelect') && currentConfig.kiosk_pass_history_mode) {
+      $('passHistoryModeSelect').value = currentConfig.kiosk_pass_history_mode;
+    }
+
+    // PPE checkboxes
+    const ppe = currentConfig.required_ppe || {};
+    $('ppeHelmet').checked = ppe.helmet !== false;
+    $('ppeVest').checked = ppe.vest !== false;
+    $('ppeMask').checked = !!ppe.mask;
+
+    await refreshDevices();
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+  }
+}
+
+// Save camera & Kiosk settings
+async function saveCameraSettings(e) {
+  e.preventDefault();
+  const [w, h] = $('camResSelect').value.split('x').map(Number);
+  const camIdx = parseInt($('camDeviceSelect').value || 0);
+
+  const updated = {
+    ...currentConfig,
+    camera_index: camIdx,
+    camera_width: w,
+    camera_height: h,
+    device: $('renderDeviceSelect').value,
+    kiosk_pass_history_mode: $('passHistoryModeSelect') ? $('passHistoryModeSelect').value : 'latest',
+    required_ppe: {
+      helmet: $('ppeHelmet').checked,
+      vest: $('ppeVest').checked,
+      mask: $('ppeMask').checked
+    }
+  };
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    const data = await res.json();
+    if (res.ok) {
+      currentConfig = updated;
+      try {
+        localStorage.setItem('ppe_admin_settings', JSON.stringify(updated));
+      } catch (err) {}
+      showToast('บันทึกการตั้งค่ากล้องสำเร็จเรียบร้อยแล้ว (อัปเดตไปยัง Kiosk ทันที)', true);
+      // Reload preview image
+      setTimeout(startPreview, 600);
+    } else {
+      showToast('ไม่สามารถบันทึกได้: ' + (data.message || 'ข้อผิดพลาด'), false);
+    }
+  } catch (err) {
+    showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', false);
+  }
+}
+
+// Render summary, logs, employees
+const NAME = { helmet: 'หมวกนิรภัย', vest: 'เสื้อสะท้อนแสง', mask: 'หน้ากาก' };
+const LABEL = { pass: 'ผ่าน', fail: 'ไม่ผ่าน', none: 'ยังไม่ตรวจ' };
+const miss = a => (a && a.length) ? a.map(k => NAME[k] || k).join(', ') : '-';
+const badge = s => '<span class="badge ' + (s || 'none') + '">' + (LABEL[s] || s) + '</span>';
+
+async function loadLogsAndData() {
+  try {
+    const [sumRes, logsRes] = await Promise.all([
+      fetch('/api/today').then(r => r.json()),
+      fetch('/api/logs?limit=50').then(r => r.json())
+    ]);
+
+    if (sumRes && sumRes.counts) {
+      $('cPass').textContent = sumRes.counts.pass ?? 0;
+      $('cFail').textContent = sumRes.counts.fail ?? 0;
+      $('cNone').textContent = sumRes.counts.none ?? 0;
+    }
+
+    const employees = (sumRes && sumRes.employees) ? sumRes.employees : [];
+    const logsList = Array.isArray(logsRes) ? logsRes : [];
+
+    $('today').innerHTML = employees.map(e => `
+      <tr>
+        <td><b>${esc(e.code)}</b></td>
+        <td>${esc(e.name || '-')}</td>
+        <td>${badge(e.status)}</td>
+        <td>${esc(e.time ? e.time.slice(11) : '-')}</td>
+        <td>${esc(miss(e.missing))}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" style="text-align:center; color:var(--muted);">ยังไม่มีประวัติวันนี้</td></tr>';
+
+    $('logs').innerHTML = logsList.map(l => {
+      const imgCell = l.has_image
+        ? `<img class="log-thumb" src="/api/check_image/${encodeURIComponent(l.id)}.jpg"
+               data-id="${esc(l.id)}" data-code="${esc(l.code || 'ไม่ทราบ')}" data-name="${esc(l.name || '-')}"
+               data-time="${esc(l.time || '-')}" data-res="${esc(l.result)}" title="คลิกเพื่อดูภาพขยาย">`
+        : '-';
+      return `
+        <tr>
+          <td>${esc(l.time || '-')}</td>
+          <td><b>${esc(l.code || 'ไม่ทราบ')}</b></td>
+          <td>${esc(l.name || '-')}</td>
+          <td>${badge(l.result)}</td>
+          <td>${esc(miss(l.missing))}</td>
+          <td>${imgCell}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="6" style="text-align:center; color:var(--muted);">ยังไม่มีข้อมูลผลตรวจ</td></tr>';
+
+    $('emps').innerHTML = employees.map(e => `
+      <tr>
+        <td><b>${esc(e.code)}</b></td>
+        <td>${esc(e.name || '-')}</td>
+        <td><button class="link qr" data-qr="${esc(e.code)}" data-name="${esc(e.name || '')}">ดูและดาวน์โหลด QR บัตร</button></td>
+        <td><button class="link del" data-del="${esc(e.code)}">ลบ</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" style="text-align:center; color:var(--muted);">ยังไม่มีรายชื่อพนักงาน</td></tr>';
+
+  } catch (err) {
+    console.error('Error fetching data:', err);
+  }
+}
+
+// Modal handling
+function openQrModal(code, name) {
+  $('modalTitle').textContent = 'QR บัตรพนักงาน';
+  $('modalEmp').textContent = (name && name !== '-' ? name + ' ' : '') + '(รหัส ' + code + ')';
+  const url = '/qr/' + encodeURIComponent(code) + '.png';
+  $('modalQrImg').src = url;
+  $('modalDownload').href = url;
+  $('modalDownload').download = 'qr_' + code + '.png';
+  $('qrModal').classList.add('active');
+}
+
+function closeQrModal() {
+  $('qrModal').classList.remove('active');
+  $('modalQrImg').src = '';
+}
+
+$('modalClose').addEventListener('click', closeQrModal);
+$('modalCloseBtn').addEventListener('click', closeQrModal);
+$('qrModal').addEventListener('click', e => { if (e.target === $('qrModal')) closeQrModal(); });
+
+function openImgModal(d) {
+  const code = d.code || 'ไม่ทราบ';
+  const name = d.name && d.name !== '-' ? d.name : '';
+  const time = d.time || '';
+  const res = d.res || '';
+  const resBadge = res === 'pass' ? '<span class="badge pass">ผ่าน</span>' : res === 'fail' ? '<span class="badge fail">ไม่ผ่าน</span>' : '';
+  
+  $('imgModalInfo').innerHTML = 'เวลา: <b>' + esc(time) + '</b> · รหัส: <b>' + esc(code) + '</b>' + (name ? ' (' + esc(name) + ')' : '') + ' · ผลตรวจ: ' + resBadge;
+  const url = '/api/check_image/' + encodeURIComponent(d.id) + '.jpg';
+  $('imgModalSrc').src = url;
+  $('imgModalDownload').href = url;
+  $('imgModalDownload').download = 'inspection_' + d.id + '.jpg';
+  $('imgModal').classList.add('active');
+}
+
+function closeImgModal() {
+  $('imgModal').classList.remove('active');
+  $('imgModalSrc').src = '';
+}
+
+$('imgModalClose').addEventListener('click', closeImgModal);
+$('imgModalCloseBtn').addEventListener('click', closeImgModal);
+$('imgModal').addEventListener('click', e => { if (e.target === $('imgModal')) closeImgModal(); });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeQrModal();
+    closeImgModal();
+  }
+});
+
+$('logs').addEventListener('click', e => {
+  const thumb = e.target.closest('.log-thumb');
+  if (thumb) openImgModal(thumb.dataset);
+});
+
+// Add / Delete Employee
+$('add').addEventListener('click', async () => {
+  const text = $('bulk').value.trim();
+  if (!text) return;
+  const r = await fetch('/api/employees', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  });
+  const d = await r.json();
+  $('msg').textContent = 'เพิ่ม/อัปเดตแล้ว ' + d.added + ' คน';
+  if (d.added) $('bulk').value = '';
+  loadLogsAndData();
+  setTimeout(() => { $('msg').textContent = ''; }, 3000);
+});
+
+$('emps').addEventListener('click', async e => {
+  const qrCode = e.target.dataset.qr;
+  if (qrCode) {
+    openQrModal(qrCode, e.target.dataset.name || '');
+    return;
+  }
+  const code = e.target.dataset.del;
+  if (code && confirm('ต้องการลบรหัส ' + code + ' ออกจากระบบหรือไม่? (ประวัติการตรวจเดิมจะไม่ถูกลบ)')) {
+    await fetch('/api/employees/' + encodeURIComponent(code), { method: 'DELETE' });
+    loadLogsAndData();
+  }
+});
+
+// Init
+loadSettings();
+loadLogsAndData();
+startPreview();
+setInterval(loadLogsAndData, 4000);
+</script>
+
+</body>
+</html>

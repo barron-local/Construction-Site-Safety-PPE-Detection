@@ -1,4 +1,4 @@
-from flask import Flask, render_template, Response, jsonify, request, send_file
+from flask import Flask, render_template, Response, jsonify, request, send_file, redirect
 from flask_socketio import SocketIO, emit
 import cv2
 from ultralytics import YOLO
@@ -13,8 +13,10 @@ from database import Database
 from kiosk_logic import KioskSession
 from hardware import HardwareLink
 from ppe_stabilizer import PPETemporalStabilizer, box_intersection_ratio
+import torch
 import checklog
 import json
+import subprocess
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'N/A'
@@ -35,7 +37,7 @@ checklog.init()
 recorder = checklog.CheckRecorder()
 ppe_stabilizer = PPETemporalStabilizer(iou_match_thresh=0.35, max_grace_frames=5, alpha=0.72)
 
-SETTINGS_FILE = 'settings.json'
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'settings.json')
 DEFAULT_SETTINGS = {
     'required_ppe': {
         'helmet': True,
@@ -44,7 +46,12 @@ DEFAULT_SETTINGS = {
     },
     'non_compliance_delay': 3,
     'instance_reset_timeout': 5,
-    'detection_mode': 'single'  # 'single' or 'multi'
+    'detection_mode': 'single',  # 'single' or 'multi'
+    'camera_index': 1,
+    'camera_width': 640,
+    'camera_height': 320,
+    'device': 'gpu',
+    'kiosk_pass_history_mode': 'latest'  # 'latest' or 'all'
 }
 
 def load_settings():
@@ -71,8 +78,23 @@ current_settings = load_settings()
 
 cap_verifier = None
 
+def get_inference_device():
+    """Detect and return device based on settings or system availability"""
+    target = current_settings.get('device', 'gpu')
+    if target == 'cpu':
+        return 'cpu', "CPU (Standard Mode)"
+    
+    # Try GPU if requested or default
+    try:
+        if torch.cuda.is_available():
+            dev_name = torch.cuda.get_device_name(0)
+            return 0, f"CUDA (GPU: {dev_name})"
+    except Exception:
+        pass
+    return 'cpu', "CPU (Standard Mode)"
+
 def load_model():
-    """Load Master 200-Epoch Super PPE Model + Dedicated Cap Verifier"""
+    """Load Master 200-Epoch Super PPE Model + Dedicated Cap Verifier on GPU/CUDA"""
     global model, cap_verifier
     super_model_path = os.path.abspath(os.path.join(
         os.path.dirname(__file__),
@@ -83,15 +105,26 @@ def load_model():
         '../Model-Training/Outputs/runs/detect/yolov8s_ppe_model_with_cap_class/weights/best.pt'
     ))
     
+    device_id, device_label = get_inference_device()
+    print(f"[+] [ACCELERATION] Using Device: {device_label}")
+
     if os.path.exists(super_model_path):
         print(f"[+] [EXCLUSIVE] Loaded Master PPE Model: {super_model_path}")
         model = YOLO(super_model_path)
+        try:
+            model.to(device_id)
+        except Exception as e:
+            print(f"Warning: could not move model to {device_id}: {e}")
     else:
         raise FileNotFoundError(f"[-] Critical: PPE model not found at {super_model_path}")
 
     if os.path.exists(cap_model_path):
         print(f"[+] [EXCLUSIVE] Loaded Dedicated Cap Verifier: {cap_model_path}")
         cap_verifier = YOLO(cap_model_path)
+        try:
+            cap_verifier.to(device_id)
+        except Exception as e:
+            print(f"Warning: could not move cap verifier to {device_id}: {e}")
 
 def is_headwear_a_cap(img, head_box, current_class='Hardhat'):
     """
@@ -125,7 +158,7 @@ def is_headwear_a_cap(img, head_box, current_class='Hardhat'):
         lab[:, :, 0] = clahe.apply(lab[:, :, 0])
         enhanced_crop = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
-        r = cap_verifier(enhanced_crop, imgsz=224, conf=0.15, verbose=False)[0]
+        r = cap_verifier(enhanced_crop, imgsz=224, conf=0.15, device=get_inference_device()[0], verbose=False)[0]
         caps = [float(b.conf[0]) for b in r.boxes if cap_verifier.names[int(b.cls[0])].lower() == 'cap']
         hardhats = [float(b.conf[0]) for b in r.boxes if cap_verifier.names[int(b.cls[0])].lower() == 'hardhat']
         no_hardhats = [float(b.conf[0]) for b in r.boxes if cap_verifier.names[int(b.cls[0])].lower() == 'no-hardhat']
@@ -153,31 +186,32 @@ def verify_cap_on_crop(img, bbox):
     return False, 0.0
 
 def get_ppe_class_ids(model_inst, include_mask=None):
-    """Filter class IDs to focus STRICTLY on worker PPE attire & person, ignoring vehicles & machinery.
-    Mask & NO-Mask are excluded by default because masks are not standard construction PPE,
-    unless explicitly enabled in Settings ('mask': True).
-    """
+    """Filter class IDs to focus STRICTLY on required PPE attire & person based on current settings."""
     if not model_inst or not hasattr(model_inst, 'names'):
         return None
 
     global current_settings
-    if include_mask is None:
-        include_mask = current_settings.get('required_ppe', {}).get('mask', False) if current_settings else False
+    req_ppe = current_settings.get('required_ppe', {}) if current_settings else {}
+    req_helmet = req_ppe.get('helmet', True)
+    req_vest = req_ppe.get('vest', True)
+    req_mask = req_ppe.get('mask', False) if include_mask is None else include_mask
 
     excluded = ['vehicle', 'machinery', 'excavator', 'ladder', 'truck', 'sedan', 'van', 'bus', 'semi', 'trailer', 'loader', 'hydrant', 'suv', 'cone']
-    allowed = ['hardhat', 'vest', 'person', 'glove', 'cap']
-    if include_mask:
-        allowed.append('mask')
-
+    
     target_ids = []
     for cid, name in model_inst.names.items():
         n = name.lower()
         if any(ex in n for ex in excluded):
             continue
-        if not include_mask and 'mask' in n:
+        # Check PPE relevance according to checkboxes
+        if not req_mask and 'mask' in n:
             continue
-        if any(al in n for al in allowed):
-            target_ids.append(cid)
+        if not req_helmet and any(k in n for k in ['hardhat', 'cap']):
+            continue
+        if not req_vest and 'vest' in n:
+            continue
+
+        target_ids.append(cid)
     return target_ids if target_ids else None
 
 def verify_person_ppe_compliance(detections, img_shape):
@@ -280,7 +314,10 @@ def generate_frames(clean=False):
             
             frame_count += 1
             ppe_ids = get_ppe_class_ids(model)
-            results = model(frame, conf=0.20, iou=0.45, imgsz=640, classes=ppe_ids, agnostic_nms=True, verbose=False) if ppe_ids else model(frame, conf=0.20, iou=0.45, imgsz=640, agnostic_nms=True, verbose=False)
+            dev_target = get_inference_device()[0]
+            
+            # High-Performance Inference on CUDA for 60+ FPS
+            results = model(frame, conf=0.20, iou=0.45, imgsz=640, classes=ppe_ids, agnostic_nms=True, device=dev_target, verbose=False) if ppe_ids else model(frame, conf=0.20, iou=0.45, imgsz=640, agnostic_nms=True, device=dev_target, verbose=False)
             
             all_detections = []
             person_boxes = []
@@ -388,7 +425,7 @@ def generate_frames(clean=False):
                 'dev_mode': dev_mode
             })
             
-            ret, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            ret, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
             if not ret:
                 continue
                 
@@ -428,12 +465,100 @@ def kiosk_state_api():
     state = kiosk.get_state()
     state['hardware'] = hardware.status()
     state['employee'] = recorder.current()
+    pass_mode = current_settings.get('kiosk_pass_history_mode', 'latest')
+    state['pass_history_mode'] = pass_mode
+
+    # ดึงประวัติผู้ตรวจผ่านล่าสุด หรือทั้งหมด ตามโหมดที่ตั้งค่าใน /admin
+    if pass_mode == 'all':
+        all_passes = checklog._q(
+            'SELECT l.id, l.emp_code, e.name, l.checked_at FROM check_logs l '
+            'LEFT JOIN employees e ON e.code = l.emp_code '
+            'INNER JOIN check_images i ON i.log_id = l.id '
+            'WHERE l.result = "pass" ORDER BY l.id DESC LIMIT 30'
+        )
+        state['all_passes'] = [
+            {
+                'id': row[0],
+                'code': row[1] or '-',
+                'name': row[2] or '-',
+                'time': row[3],
+                'image_url': f'/api/check_image/{row[0]}.jpg'
+            }
+            for row in all_passes
+        ]
+        state['last_pass'] = state['all_passes'][0] if state['all_passes'] else None
+    else:
+        latest_pass = checklog._q(
+            'SELECT l.id, l.emp_code, e.name, l.checked_at FROM check_logs l '
+            'LEFT JOIN employees e ON e.code = l.emp_code '
+            'INNER JOIN check_images i ON i.log_id = l.id '
+            'WHERE l.result = "pass" ORDER BY l.id DESC LIMIT 1'
+        )
+        if latest_pass:
+            lid, lcode, lname, ltime = latest_pass[0]
+            state['last_pass'] = {
+                'id': lid,
+                'code': lcode or '-',
+                'name': lname or '-',
+                'time': ltime,
+                'image_url': f'/api/check_image/{lid}.jpg'
+            }
+        else:
+            state['last_pass'] = None
+        state['all_passes'] = [state['last_pass']] if state['last_pass'] else []
     return jsonify(state)
+
+@app.route('/changelog')
+def changelog_page():
+    """Changelog and GitHub commit history page"""
+    return render_template('changelog.html')
+
+@app.route('/api/changelog')
+def api_changelog():
+    """Get Git commit history as structured changelog entries"""
+    try:
+        # Run git log in repo root directory
+        repo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        cmd = ['git', 'log', '-n', '60', '--pretty=format:%h%x09%an%x09%ad%x09%ar%x09%s', '--date=format:%Y-%m-%d %H:%M']
+        res = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        
+        commits = []
+        if res.returncode == 0 and res.stdout:
+            for line in res.stdout.strip().splitlines():
+                parts = line.split('\t')
+                if len(parts) >= 5:
+                    commits.append({
+                        'hash': parts[0],
+                        'author': parts[1],
+                        'date': parts[2],
+                        'relative_time': parts[3],
+                        'message': parts[4]
+                    })
+        return jsonify({'status': 'success', 'commits': commits})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e), 'commits': []}), 500
+
+@app.route('/admin')
+def admin_page():
+    """Admin dashboard: Camera settings, inspection logs, and employee management"""
+    return render_template('admin.html')
 
 @app.route('/logs')
 def logs_page():
-    """Check history and employee list"""
-    return render_template('logs.html')
+    """Redirect legacy /logs route to new /admin route"""
+    return redirect('/admin')
+
+@app.route('/api/camera_devices')
+def api_camera_devices():
+    """Return available camera choices immediately without blocking probe delays"""
+    # Pre-populated common indices for Windows/USB webcams
+    devices = [
+        {'index': 0, 'name': 'กล้องหลัก (Camera 0 / Default)', 'available': True},
+        {'index': 1, 'name': 'กล้องตัวที่สอง (Camera 1 / USB 1)', 'available': True},
+        {'index': 2, 'name': 'กล้องตัวที่สาม (Camera 2 / USB 2)', 'available': True},
+        {'index': 3, 'name': 'กล้องตัวที่สี่ (Camera 3 / DroidCam / OBS)', 'available': True}
+    ]
+    return jsonify(devices)
 
 @app.route('/api/logs')
 def api_logs():
@@ -526,16 +651,55 @@ def get_settings():
 
 @app.route('/api/settings', methods=['POST'])
 def update_settings():
-    """Update settings"""
-    global current_settings
+    """Update settings and dynamically reconfigure camera if needed"""
+    global current_settings, camera, streaming
     try:
         new_settings = request.json
-        current_settings = new_settings
+        old_idx = current_settings.get('camera_index', 0)
+        old_w = current_settings.get('camera_width', 1280)
+        old_h = current_settings.get('camera_height', 720)
         
+        current_settings = new_settings
         instance_detector.update_settings(new_settings)
         
+        # Check if camera parameters changed
+        new_idx = int(new_settings.get('camera_index', 0))
+        new_w = int(new_settings.get('camera_width', 1280))
+        new_h = int(new_settings.get('camera_height', 720))
+        cam_changed = (old_idx != new_idx or old_w != new_w or old_h != new_h)
+        
+        # Check if render device changed (GPU <-> CPU)
+        if 'device' in new_settings:
+            target_dev, dev_label = get_inference_device()
+            try:
+                if model is not None:
+                    model.to(target_dev)
+                if cap_verifier is not None:
+                    cap_verifier.to(target_dev)
+                print(f"[+] [ACCELERATION] Switched Model Device to: {dev_label}")
+            except Exception as e:
+                print(f"Warning: could not switch model device: {e}")
+        
+        if cam_changed:
+            with stream_lock:
+                if camera is not None:
+                    try:
+                        camera.release()
+                    except Exception:
+                        pass
+                    camera = None
+                time.sleep(0.15)
+                camera = cv2.VideoCapture(new_idx, cv2.CAP_DSHOW)
+                if not camera.isOpened():
+                    camera = cv2.VideoCapture(new_idx)
+                camera.set(cv2.CAP_PROP_FRAME_WIDTH, new_w)
+                camera.set(cv2.CAP_PROP_FRAME_HEIGHT, new_h)
+                camera.set(cv2.CAP_PROP_FPS, 60)
+                camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            streaming = True
+        
         if save_settings_to_file(new_settings):
-            return jsonify({'status': 'success', 'message': 'Settings saved'})
+            return jsonify({'status': 'success', 'message': 'บันทึกการตั้งค่าเรียบร้อยแล้ว'})
         else:
             return jsonify({'status': 'error', 'message': 'Failed to save settings to file'}), 500
     except Exception as e:
@@ -556,10 +720,30 @@ def reset_settings():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+def init_camera_stream():
+    """Ensure camera is initialized and streaming is active"""
+    global camera, streaming, model
+    if model is None:
+        load_model()
+    with stream_lock:
+        if camera is None or not camera.isOpened():
+            cam_idx = int(current_settings.get('camera_index', os.environ.get('PPE_CAMERA_INDEX', 0)))
+            cam_w = int(current_settings.get('camera_width', 1280))
+            cam_h = int(current_settings.get('camera_height', 720))
+            camera = cv2.VideoCapture(cam_idx, cv2.CAP_DSHOW)
+            if not camera.isOpened():
+                camera = cv2.VideoCapture(cam_idx)
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, cam_w)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, cam_h)
+            camera.set(cv2.CAP_PROP_FPS, 60)
+            camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    streaming = True
+
 @app.route('/video_feed')
 def video_feed():
-    """Video streaming route"""
+    """Video streaming route with auto-start stream"""
     try:
+        init_camera_stream()
         return Response(generate_frames(clean=request.args.get('clean') == '1'),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
     except Exception as e:
@@ -572,16 +756,7 @@ def start_stream():
     global camera, streaming, model
     
     try:
-        if model is None:
-            load_model()
-        
-        with stream_lock:
-            if camera is None or not camera.isOpened():
-                camera = cv2.VideoCapture(int(os.environ.get('PPE_CAMERA_INDEX', 0)))
-                camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-                camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-                camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        
+        init_camera_stream()
         kiosk.reset()
         recorder.clear()
         ppe_stabilizer.reset()

@@ -559,6 +559,23 @@ class PPETemporalStabilizer:
                         'bbox': [round(px1 + 0.06 * pw, 1), round(py1, 1), round(px2 - 0.06 * pw, 1), round(py1 + 0.35 * ph, 1)]
                     })
 
+            if 'mask' in missing and not has_mask and required_ppe.get('mask', False):
+                has_any_mask = any(
+                    item.category == 'face' and not item.class_name.lower().startswith(('no-', 'no ', 'no_'))
+                    and (box_intersection_ratio(item.bbox, head_box) > 0.08 or calculate_iou(item.bbox, head_box) > 0.08)
+                    for item in ppe_tracks
+                )
+                if not has_any_mask:
+                    synthetic_violations.append({
+                        'id': 9000 + pid * 2 + 2,
+                        'class': 'NO-Mask',
+                        'confidence': round(p.conf * 0.88, 2),
+                        'is_violation': True,
+                        'is_inferred': True,
+                        'note': f'ไม่พบหน้ากากบนคนงาน #{pid}',
+                        'bbox': [round(px1 + 0.15 * pw, 1), round(py1 + 0.18 * ph, 1), round(px2 - 0.15 * pw, 1), round(py1 + 0.38 * ph, 1)]
+                    })
+
         # 6. Format initial stabilized detections
         for tid, t in self.tracks.items():
             if t.hits >= 2 or t.conf >= 0.45:
@@ -721,6 +738,10 @@ class PPETemporalStabilizer:
         }
 
         for det in detections:
+            # Skip drawing synthetic inferred [Missing] boxes on live video (Clean View)
+            if det.get('is_inferred'):
+                continue
+
             cls_name = det['class']
             conf = det['confidence']
             x1, y1, x2, y2 = [int(v) for v in det['bbox']]

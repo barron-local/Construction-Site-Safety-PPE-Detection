@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บันทึกประวัติการอัปเดตระบบ (Changelog)</title>
+<style>
+  :root {
+    --ink: #16191d;
+    --muted: #5b6670;
+    --line: #d9dde2;
+    --bg: #f4f5f7;
+    --card-bg: #ffffff;
+    --blue: #1a73e8;
+    --green: #0a7b3e;
+    --purple: #7c3aed;
+    --font: "Avenir Next", "Sukhumvit Set", "Thonburi", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); }
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    padding: 1.1rem 2rem;
+    background: var(--ink);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  header h1 { flex: 1; margin: 0; font-size: 1.35rem; }
+  header .nav { display: flex; gap: 1rem; font-size: .95rem; }
+  header a { color: #e2e8f0; text-decoration: none; padding: .35rem .75rem; border-radius: 6px; transition: background .15s; }
+  header a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+  main {
+    max-width: 960px;
+    margin: 2rem auto;
+    padding: 0 1.5rem 3rem;
+  }
+
+  .header-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .header-card h2 { margin: 0 0 .25rem; font-size: 1.4rem; }
+  .header-card p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+  .timeline {
+    position: relative;
+    padding-left: 2rem;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: 7px;
+    width: 2px;
+    background: var(--line);
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+  .timeline-dot {
+    position: absolute;
+    left: -2rem;
+    top: 14px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--blue);
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .timeline-item.feat .timeline-dot { background: var(--green); }
+  .timeline-item.fix .timeline-dot { background: #dc2626; }
+
+  .timeline-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .timeline-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  .timeline-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: .4rem;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  .commit-hash {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .85rem;
+    background: #e2e8f0;
+    color: #334155;
+    padding: .15rem .45rem;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .commit-tag {
+    font-size: .75rem;
+    font-weight: 700;
+    padding: .1rem .45rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .commit-tag.feat { background: #dcfce7; color: #15803d; }
+  .commit-tag.fix { background: #fee2e2; color: #b91c1c; }
+  .commit-tag.other { background: #f1f5f9; color: #475569; }
+
+  .commit-time {
+    font-size: .85rem;
+    color: var(--muted);
+  }
+
+  .commit-msg {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--ink);
+    margin: .25rem 0 .5rem;
+  }
+
+  .commit-author {
+    font-size: .85rem;
+    color: var(--muted);
+  }
+
+  .github-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .6rem 1.2rem;
+    background: #24292e;
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: .95rem;
+  }
+  .github-btn:hover { background: #1b1f23; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ประวัติการอัปเดตระบบ (Changelog)</h1>
+  <div class="nav">
+    <a href="/kiosk">หน้าจุดตรวจ Kiosk</a>
+    <a href="/admin">จัดการระบบ (Admin)</a>
+    <a href="/">แดชบอร์ด</a>
+  </div>
+</header>
+
+<main>
+  <div class="header-card">
+    <h2>ประวัติการพัฒนาและเวอร์ชัน (Git Commits)</h2>
+  </div>
+
+  <div class="timeline" id="timelineList">
+    <div style="text-align:center; padding: 2rem; color:var(--muted);">กำลังโหลดประวัติจาก Git...</div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+})[c]);
+
+async function loadChangelog() {
+  try {
+    const res = await fetch('/api/changelog');
+    const data = await res.json();
+    
+    if (!data.commits || data.commits.length === 0) {
+      $('timelineList').innerHTML = '<div style="color:var(--muted); padding:2rem;">ไม่พบข้อมูลประวัติ Git Commit</div>';
+      return;
+    }
+
+    $('timelineList').innerHTML = data.commits.map(c => {
+      let typeClass = 'other';
+      let tagText = 'UPDATE';
+      const msgLower = c.message.toLowerCase();
+      
+      if (msgLower.startsWith('feat')) {
+        typeClass = 'feat';
+        tagText = 'FEATURE';
+      } else if (msgLower.startsWith('fix')) {
+        typeClass = 'fix';
+        tagText = 'BUG FIX';
+      }
+
+      return `
+        <div class="timeline-item ${typeClass}">
+          <div class="timeline-dot"></div>
+          <div class="timeline-card">
+            <div class="timeline-header">
+              <div style="display:flex; align-items:center; gap:.5rem;">
+                <span class="commit-tag ${typeClass}">${tagText}</span>
+                <span class="commit-hash">${esc(c.hash)}</span>
+              </div>
+              <span class="commit-time">${esc(c.date)} (${esc(c.relative_time)})</span>
+            </div>
+            <div class="commit-msg">${esc(c.message)}</div>
+            <div class="commit-author">ผู้แก้ไข: <b>${esc(c.author)}</b></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+  } catch (err) {
+    $('timelineList').innerHTML = '<div style="color:red; padding:2rem;">เกิดข้อผิดพลาดในการโหลดประวัติ Git</div>';
+  }
+}
+
+loadChangelog();
+</script>
+</body>
+</html>
