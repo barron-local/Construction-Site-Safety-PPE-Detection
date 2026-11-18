@@ -1,7 +1,35 @@
-Flask
-Flask-SocketIO
-opencv-python
-ultralytics
-Pillow
-python-socketio
-eventlet
+# ==============================================================
+# Construction Site Safety - PPE Detection System Requirements
+# ==============================================================
+
+# Core Framework & Web Server
+Flask>=3.0.0
+Flask-SocketIO>=5.3.0
+python-socketio>=5.10.0
+python-engineio>=4.8.0
+waitress>=3.0.0
+Jinja2>=3.1.2
+Werkzeug>=3.0.0
+
+# Computer Vision & Deep Learning
+ultralytics>=8.3.0
+opencv-python>=4.8.0
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# Hardware & Microcontroller Support (Arduino / ESP32)
+pyserial>=3.5
+
+# QR Code Badge Generation
+qrcode[pil]>=7.4.2
+
+# Data Analysis & Metrics
+matplotlib>=3.7.0
+pandas>=2.0.0
+requests>=2.31.0
+
+# --------------------------------------------------------------
+# PyTorch GPU Acceleration (CUDA 12.1 Recommended)
+# ติดตั้ง PyTorch สำหรับ GPU (NVIDIA CUDA 12.1) ด้วยคำสั่ง:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# --------------------------------------------------------------
